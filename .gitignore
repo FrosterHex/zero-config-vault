@@ -35,3 +35,8 @@ out/
 *.pem
 .DS_Store
 Thumbs.db
+
+# Agent & scratch files
+.agents/
+progress.txt
+

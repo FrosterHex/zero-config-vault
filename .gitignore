@@ -40,3 +40,5 @@ Thumbs.db
 .agents/
 progress.txt
 Antigravity_Vault_Build_Spec.md
+verify-vault.ps1
+verify-vault.sh

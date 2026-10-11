@@ -1,0 +1,36 @@
+spring:
+  application:
+    name: secure-config-vault
+
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017/secure_config_vault
+      database: secure_config_vault
+      auto-index-creation: true
+
+server:
+  port: 8080
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+
+
+# Application-specific configuration
+vault:
+  master:
+    key: ${VAULT_MASTER_KEY:0123456789abcdef0123456789abcdef}
+  api:
+    keys: sk-dev-key-001,sk-dev-key-002
+    header-name: X-API-Key
+  cache:
+    ttl: 300
+  version:
+    expiry-days: 90
+  audit:
+    cap-size-mb: 50
+    max-documents: 10000

@@ -1,0 +1,105 @@
+services:
+  # ============================================================================
+  # 1. MongoDB 7.0 Single-Node Replica Set (rs0)
+  # Enables native Change Streams (Oplog) and ACID Multi-Document Transactions
+  # ============================================================================
+  mongo:
+    image: mongo:7.0
+    container_name: vault-mongo
+    restart: unless-stopped
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    ports:
+      - "27017:27017"
+    volumes:
+      - vault-mongo-data:/data/db
+    healthcheck:
+      test: >
+        mongosh --quiet --eval "
+          try {
+            var status = rs.status();
+            if (status.ok === 1) { quit(0); }
+          } catch(e) {}
+          try {
+            rs.initiate({ _id: 'rs0', members: [{ _id: 0, host: 'mongo:27017' }] });
+            quit(0);
+          } catch(e) {
+            quit(1);
+          }
+        "
+      interval: 5s
+      timeout: 10s
+      retries: 12
+      start_period: 5s
+    networks:
+      - vault-network
+
+  # ============================================================================
+  # 2. Database Seeder & Schema Initializer
+  # Executes once to create capped audit logs, TTL cache indexes, and seed keys
+  # ============================================================================
+  mongo-init:
+    image: mongo:7.0
+    container_name: vault-mongo-init
+    depends_on:
+      mongo:
+        condition: service_healthy
+    volumes:
+      - ./docker/init-mongo.js:/scripts/init-mongo.js:ro
+    entrypoint: ["mongosh", "--host", "mongo:27017", "/scripts/init-mongo.js"]
+    restart: "no"
+    networks:
+      - vault-network
+
+  # ============================================================================
+  # 3. Secure Config Vault Backend (Spring Boot 3.x / Java 17)
+  # REST APIs, SSE Streams, GridFS Blobs, Envelope Crypto, Swagger UI
+  # ============================================================================
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vault-backend
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_DATA_MONGODB_URI=mongodb://mongo:27017/secure_config_vault?replicaSet=rs0
+      - VAULT_MASTER_KEY=0123456789abcdef0123456789abcdef
+      - VAULT_API_KEYS=sk-dev-key-001,sk-dev-key-002,sk-admin-master-key
+      - SERVER_PORT=8080
+    depends_on:
+      mongo:
+        condition: service_healthy
+      mongo-init:
+        condition: service_completed_successfully
+    networks:
+      - vault-network
+
+  # ============================================================================
+  # 4. Modern Vault Dashboard (Next.js 15 / React 19 / Tailwind CSS)
+  # JSON Tree Editor, Git Timeline, Delta Studio, Aggregation Telemetry
+  # ============================================================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: vault-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_VAULT_API_URL=http://localhost:8080
+      - NEXT_PUBLIC_VAULT_API_KEY=sk-dev-key-001
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - vault-network
+
+networks:
+  vault-network:
+    driver: bridge
+
+volumes:
+  vault-mongo-data:
+    driver: local

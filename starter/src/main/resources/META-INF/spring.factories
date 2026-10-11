@@ -1,0 +1,7 @@
+# Spring Cloud Bootstrap PropertySourceLocator
+org.springframework.cloud.bootstrap.config.PropertySourceLocator=\
+  com.vault.starter.VaultPropertySourceLocator
+
+# Native Spring Boot EnvironmentPostProcessor
+org.springframework.boot.env.EnvironmentPostProcessor=\
+  com.vault.starter.VaultEnvironmentPostProcessor

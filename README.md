@@ -3,10 +3,11 @@
 > **Enterprise-Grade, GitOps-Style Configuration & Secret Management Engine**  
 > Powered by MongoDB 7.0 Replica Sets, Spring Boot 3.x (Java 17 LTS), and Next.js 15.
 
-[![Build Status](https://img.shields.io/badge/Build-Passing%20100%25-brightgreen.svg)]()
+[![Live Dashboard](https://img.shields.io/badge/Live%20Dashboard-zeroconfig--one.vercel.app-6366f1.svg)](https://zeroconfig-one.vercel.app)
+[![Backend API](https://img.shields.io/badge/Backend%20API-Live%20on%20Render-emerald.svg)](https://zeroconfig-0s8m.onrender.com/swagger-ui.html)
+[![MongoDB Atlas](https://img.shields.io/badge/MongoDB-Atlas%20ReplicaSet%20M0-forestgreen.svg)]()
 [![Java 17](https://img.shields.io/badge/Java-17%20LTS-blue.svg)]()
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.2.5-brightgreen.svg)]()
-[![MongoDB](https://img.shields.io/badge/MongoDB-7.0%20ReplicaSet-forestgreen.svg)]()
 [![Next.js](https://img.shields.io/badge/Next.js-15.5.27%20(Turbopack)-black.svg)]()
 [![Lombok](https://img.shields.io/badge/Lombok-0%25%20(Strictly%20Excluded)-red.svg)]()
 [![License](https://img.shields.io/badge/License-Apache%202.0-lightgrey.svg)]()
@@ -71,9 +72,9 @@ flowchart TD
         OPLOG["MongoDB Oplog\n(Change Streams)"]
     end
 
-    UI -->|REST & SSE| AUTH
-    MS -->|PropertySource & SSE| AUTH
-    CLI -->|REST| AUTH
+    UI -->|"REST & SSE"| AUTH
+    MS -->|"PropertySource & SSE"| AUTH
+    CLI -->|"REST"| AUTH
 
     AUTH --> REST
     AUTH --> SSE
@@ -87,9 +88,9 @@ flowchart TD
     AUDIT --> LOGS
     BLOB --> GFS
 
-    OPLOG -.->|collection.watch()| SSE
-    SSE -.->|Live SSE Push| MS
-    SSE -.->|Live SSE Push| UI
+    OPLOG -.->|"collection.watch()"| SSE
+    SSE -.->|"Live SSE Push"| MS
+    SSE -.->|"Live SSE Push"| UI
 ```
 
 ---
@@ -113,7 +114,7 @@ sequenceDiagram
 
     Dev->>API: POST /api/v1/vault/config (JSON payload + secure_settings)
     API->>Interceptor: onBeforeConvert()
-    Interceptor->>Crypto: Inspect keys matching "secure_settings"
+    Interceptor->>Crypto: Inspect keys matching 'secure_settings'
     Crypto->>Crypto: Generate DEK & Encrypt with AES-256-GCM
     Crypto->>Crypto: Compute Canonical JSON SHA-512 Hash
     Crypto-->>Interceptor: Encrypted Base64 Payload + Tag + IV
@@ -179,7 +180,7 @@ sequenceDiagram
     Note over Oplog: New configuration inserted (v = 3)
     Oplog-->>Watcher: ChangeStreamDocument (OperationType: INSERT)
     Watcher->>SSE: Emit StreamEvent (app, env, version, documentHash)
-    SSE-->>App: data: {"action":"CONFIG_UPDATED","version":3,"documentHash":"..."}
+    SSE-->>App: data: {'action':'CONFIG_UPDATED','version':3,'documentHash':'...'}
     App->>App: Invalidate in-memory cache & reload dynamic @Value beans
 ```
 

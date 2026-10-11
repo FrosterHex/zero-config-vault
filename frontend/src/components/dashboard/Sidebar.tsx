@@ -35,6 +35,7 @@ const navItems: NavItem[] = [
   { id: "binaries", title: "GridFS Binaries", href: "/binaries", icon: HardDrive },
   { id: "export", title: "Export Studio", href: "/export", icon: FileCode },
   { id: "audit", title: "Live Audit Log", href: "/audit", icon: Radio, badge: "LIVE" },
+  { id: "nosql", title: "NoSQL Deep Dive", href: "/nosql", icon: Database, badge: "PRO" },
   { id: "access", title: "Scoped API Keys", href: "/access", icon: KeyRound },
 ];
 

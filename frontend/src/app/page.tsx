@@ -21,6 +21,7 @@ import {
   TrendingUp,
   Activity,
   Zap,
+  Database,
 } from "lucide-react";
 
 import { useVault } from "@/context/VaultContext";
@@ -348,6 +349,27 @@ export default function Home() {
                   </h3>
                   <p className="text-xs text-slate-400 leading-relaxed font-light">
                     Role-Based Access Control matrix restricting token access to specific applications, environments, and privileges.
+                  </p>
+                </div>
+              </GlassCard3D>
+            </Link>
+
+            <Link href="/nosql" className="group">
+              <GlassCard3D glowColor="purple" className="h-full">
+                <div className="p-5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20 group-hover:scale-110 transition-transform">
+                      <Database className="h-5 w-5" />
+                    </div>
+                    <span className="text-[10px] font-mono uppercase text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/20">
+                      NoSQL Core
+                    </span>
+                  </div>
+                  <h3 className="font-['Montserrat',sans-serif] text-base font-bold text-white group-hover:text-purple-300 transition-colors">
+                    NoSQL Deep Dive & Sharding
+                  </h3>
+                  <p className="text-xs text-slate-400 leading-relaxed font-light">
+                    Native Time-Series request telemetry, engine-level $jsonSchema validation rules, and interactive Shard Key routing simulator.
                   </p>
                 </div>
               </GlassCard3D>

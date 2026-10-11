@@ -18,16 +18,61 @@ try {
   print('  ! audit_logs collection notice: ' + e.message);
 }
 
-// Vault Documents compound unique index
-vaultDb.vault_documents.createIndex(
+// Ensure Native Time-Series Collection for config_access_telemetry
+try {
+  if (!collections.includes('config_access_telemetry')) {
+    vaultDb.createCollection('config_access_telemetry', {
+      timeseries: {
+        timeField: 'timestamp',
+        metaField: 'metadata',
+        granularity: 'seconds'
+      }
+    });
+    print('  - Created native time-series collection: config_access_telemetry');
+  }
+} catch (e) {
+  print('  ! config_access_telemetry collection notice: ' + e.message);
+}
+
+// Vault Documents compound unique index & full-text search index
+vaultDb.configurations.createIndex(
   { applicationName: 1, environment: 1, version: 1 },
   { unique: true, name: 'idx_app_env_ver_unique' }
 );
-vaultDb.vault_documents.createIndex(
+vaultDb.configurations.createIndex(
   { applicationName: 1, environment: 1 },
   { name: 'idx_app_env' }
 );
-print('  - Created compound unique index on vault_documents');
+vaultDb.configurations.createIndex(
+  { applicationName: 'text', searchableText: 'text', environment: 'text' },
+  { name: 'idx_configurations_text_search' }
+);
+print('  - Created compound unique index and text search index on configurations');
+
+// Apply Engine-Level $jsonSchema Validation on configurations collection
+try {
+  vaultDb.runCommand({
+    collMod: 'configurations',
+    validator: {
+      $jsonSchema: {
+        bsonType: 'object',
+        required: ['applicationName', 'environment', 'version', 'documentHash', 'payload', 'createdAt'],
+        properties: {
+          applicationName: { bsonType: 'string', pattern: '^[a-zA-Z0-9_-]+$' },
+          environment: { enum: ['development', 'staging', 'production', 'dr'] },
+          version: { bsonType: 'int', minimum: 1 },
+          documentHash: { bsonType: 'string', minLength: 64, maxLength: 128 },
+          payload: { bsonType: 'object' }
+        }
+      }
+    },
+    validationLevel: 'moderate',
+    validationAction: 'error'
+  });
+  print('  - Applied engine-level $jsonSchema validation rules on configurations');
+} catch (e) {
+  print('  ! $jsonSchema validator notice: ' + e.message);
+}
 
 // Cached Config TTL index (expire documents after expiresAt timestamp)
 vaultDb.cached_configs.createIndex(
@@ -151,7 +196,7 @@ const sampleConfigs = [
 ];
 
 for (const config of sampleConfigs) {
-  vaultDb.vault_documents.updateOne(
+  vaultDb.configurations.updateOne(
     { applicationName: config.applicationName, environment: config.environment, version: config.version },
     { $set: config },
     { upsert: true }

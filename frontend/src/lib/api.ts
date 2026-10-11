@@ -63,6 +63,42 @@ export interface StreamEvent {
   timestamp: string;
 }
 
+export interface TelemetryStats {
+  totalRequests: number;
+  avgLatencyMs: number;
+  p95LatencyMs: number;
+  cacheHitRatio: number;
+  cacheHits: number;
+  cacheMisses: number;
+  operations: Record<string, number>;
+  timeline: Array<{
+    timeLabel: string;
+    requestCount: number;
+    avgLatency: number;
+    cacheHits: number;
+  }>;
+}
+
+export interface SchemaValidation {
+  targetCollection: string;
+  validationEnabled: boolean;
+  validationLevel: string;
+  validationAction: string;
+  requiredFields: string[];
+  fieldRules: Record<string, { type?: string; pattern?: string; enum?: string[]; rule?: string }>;
+  rawJsonSchema: string;
+}
+
+export interface SearchResult {
+  applicationName: string;
+  environment: string;
+  version: number;
+  documentHash: string;
+  createdAt: string;
+  score: number;
+  matchingSnippets: Record<string, unknown>;
+}
+
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const headers = new Headers(options.headers || {});
   if (!headers.has("Accept")) {
@@ -227,6 +263,18 @@ export const vaultApi = {
       cachedConfigCount: raw.cacheDocumentCount ?? raw.cachedConfigCount ?? 0,
     };
   },
+
+  // MongoDB Native Time-Series Telemetry
+  getTelemetryStats: (minutes: number = 60) =>
+    request<TelemetryStats>(`/api/v1/vault/stats/telemetry?minutes=${minutes}`),
+
+  // MongoDB Engine-Level $jsonSchema Governance
+  getSchemaValidation: () =>
+    request<SchemaValidation>(`/api/v1/vault/stats/schema`),
+
+  // MongoDB Full-Text and Regex Search
+  searchConfigs: (query: string) =>
+    request<SearchResult[]>(`/api/v1/vault/config/search?query=${encodeURIComponent(query)}`),
 
   // Server-Sent Events (SSE) Stream
   subscribeToStream: (

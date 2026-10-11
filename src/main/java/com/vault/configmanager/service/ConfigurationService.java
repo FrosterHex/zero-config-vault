@@ -28,9 +28,15 @@ import org.springframework.data.mongodb.MongoTransactionManager;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import com.vault.configmanager.dto.response.ConfigSearchResult;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.regex.Pattern;
 
 /**
  * Core Configuration Service implementing GitOps-style Temporal Versioning.
@@ -55,6 +61,8 @@ public class ConfigurationService {
     private final ConfigDiffUtil configDiffUtil;
     private final MongoTransactionManager transactionManager;
     private final ChangeStreamService changeStreamService;
+    private final MongoTemplate mongoTemplate;
+    private final TelemetryService telemetryService;
 
     @Value("${vault.version.expiry-days:90}")
     private int expiryDays;
@@ -66,7 +74,7 @@ public class ConfigurationService {
                                 AuditService auditService,
                                 ObjectMapper objectMapper,
                                 ConfigDiffUtil configDiffUtil) {
-        this(configurationRepository, jsonTraverser, hashingService, cacheService, auditService, objectMapper, configDiffUtil, null, null);
+        this(configurationRepository, jsonTraverser, hashingService, cacheService, auditService, objectMapper, configDiffUtil, null, null, null, null);
     }
 
     public ConfigurationService(ConfigurationRepository configurationRepository,
@@ -77,7 +85,7 @@ public class ConfigurationService {
                                 ObjectMapper objectMapper,
                                 ConfigDiffUtil configDiffUtil,
                                 MongoTransactionManager transactionManager) {
-        this(configurationRepository, jsonTraverser, hashingService, cacheService, auditService, objectMapper, configDiffUtil, transactionManager, null);
+        this(configurationRepository, jsonTraverser, hashingService, cacheService, auditService, objectMapper, configDiffUtil, transactionManager, null, null, null);
     }
 
     @Autowired
@@ -89,7 +97,9 @@ public class ConfigurationService {
                                 ObjectMapper objectMapper,
                                 ConfigDiffUtil configDiffUtil,
                                 @Autowired(required = false) MongoTransactionManager transactionManager,
-                                @Autowired(required = false) ChangeStreamService changeStreamService) {
+                                @Autowired(required = false) ChangeStreamService changeStreamService,
+                                @Autowired(required = false) MongoTemplate mongoTemplate,
+                                @Autowired(required = false) TelemetryService telemetryService) {
         this.configurationRepository = configurationRepository;
         this.jsonTraverser = jsonTraverser;
         this.hashingService = hashingService;
@@ -99,12 +109,15 @@ public class ConfigurationService {
         this.configDiffUtil = configDiffUtil;
         this.transactionManager = transactionManager;
         this.changeStreamService = changeStreamService;
+        this.mongoTemplate = mongoTemplate;
+        this.telemetryService = telemetryService;
     }
 
     /**
      * Ingests a new configuration or creates the first revision.
      */
     public ConfigResponse createConfiguration(ConfigRequest request, String requestingIp, String apiKey) {
+        long startTime = System.currentTimeMillis();
         String app = request.getApplicationName();
         String env = request.getEnvironment();
 
@@ -135,6 +148,7 @@ public class ConfigurationService {
                 now,
                 null // Active latest version never expires
         );
+        document.setSearchableText(buildSearchableContent(app, env, rawPayload, request.getTags()));
 
         VaultDocument saved;
         try {
@@ -151,6 +165,7 @@ public class ConfigurationService {
 
         // 7. Audit log
         auditService.log("CREATE", app, env, requestingIp, apiKey, true, null);
+        recordTelemetry(app, env, "WRITE", startTime, false, 201, requestingIp);
 
         // 8. Return decrypted response
         Document decryptedPayload = jsonTraverser.decryptDocument(saved.getPayload());
@@ -162,6 +177,7 @@ public class ConfigurationService {
      * Uses read-through caching and validates document integrity.
      */
     public ConfigResponse getLatestConfiguration(String app, String env, String requestingIp, String apiKey) {
+        long startTime = System.currentTimeMillis();
         // 1. Check MongoDB TTL Cache
         Optional<Document> cachedPayload = cacheService.get(app, env);
         if (cachedPayload.isPresent()) {
@@ -169,6 +185,7 @@ public class ConfigurationService {
             Optional<VaultDocument> latestMeta = configurationRepository
                     .findTopByApplicationNameAndEnvironmentOrderByVersionDesc(app, env);
             if (latestMeta.isPresent()) {
+                recordTelemetry(app, env, "READ", startTime, true, 200, requestingIp);
                 return toConfigResponse(latestMeta.get(), cachedPayload.get());
             }
         }
@@ -189,6 +206,7 @@ public class ConfigurationService {
 
         // 6. Audit log
         auditService.log("READ", app, env, requestingIp, apiKey, true, null);
+        recordTelemetry(app, env, "READ", startTime, false, 200, requestingIp);
 
         return toConfigResponse(document, decryptedPayload);
     }
@@ -197,6 +215,7 @@ public class ConfigurationService {
      * Retrieves a specific historical revision by version number.
      */
     public ConfigResponse getConfigurationByVersion(String app, String env, int version, String requestingIp, String apiKey) {
+        long startTime = System.currentTimeMillis();
         VaultDocument document = configurationRepository
                 .findByApplicationNameAndEnvironmentAndVersion(app, env, version)
                 .orElseThrow(() -> new ConfigNotFoundException(app, env, version));
@@ -205,6 +224,7 @@ public class ConfigurationService {
 
         Document decryptedPayload = jsonTraverser.decryptDocument(document.getPayload());
         auditService.log("READ", app, env, requestingIp, apiKey, true, null);
+        recordTelemetry(app, env, "READ", startTime, false, 200, requestingIp);
 
         return toConfigResponse(document, decryptedPayload);
     }
@@ -254,6 +274,7 @@ public class ConfigurationService {
      * Re-inserts the historical configuration as a brand-new revision with incremented version number.
      */
     public ConfigResponse rollbackToVersion(String app, String env, int targetVersion, String requestingIp, String apiKey) {
+        long startTime = System.currentTimeMillis();
         // 1. Find target historical revision
         VaultDocument targetDoc = configurationRepository
                 .findByApplicationNameAndEnvironmentAndVersion(app, env, targetVersion)
@@ -283,6 +304,7 @@ public class ConfigurationService {
                 now,
                 null
         );
+        rolledBackDoc.setSearchableText(buildSearchableContent(app, env, targetDoc.getPayload(), tags));
 
         VaultDocument saved;
         try {
@@ -295,6 +317,7 @@ public class ConfigurationService {
         cacheService.evict(app, env);
         notifyChangeStream("ROLLBACK", app, env, nextVersion, targetDoc.getDocumentHash(), tags);
         auditService.log("ROLLBACK", app, env, requestingIp, apiKey, true, null);
+        recordTelemetry(app, env, "ROLLBACK", startTime, false, 200, requestingIp);
 
         Document decryptedPayload = jsonTraverser.decryptDocument(saved.getPayload());
         return toConfigResponse(saved, decryptedPayload);
@@ -495,5 +518,109 @@ public class ConfigurationService {
                 failed == 0, failed > 0 ? "Failures: " + failed + "/" + configs.size() : null);
 
         return new BulkConfigResponse(configs.size(), succeeded, failed, results, errors);
+    }
+
+    /**
+     * Executes MongoDB Full-Text and regex search across configuration payloads, apps, and tags.
+     */
+    public List<ConfigSearchResult> searchConfigurations(String query) {
+        if (query == null || query.trim().isEmpty()) {
+            return Collections.emptyList();
+        }
+        long start = System.currentTimeMillis();
+        String cleaned = query.trim();
+
+        List<VaultDocument> matches;
+        if (mongoTemplate != null) {
+            Query mongoQuery = new Query();
+            Criteria searchCriteria = new Criteria().orOperator(
+                    Criteria.where("applicationName").regex(Pattern.quote(cleaned), "i"),
+                    Criteria.where("environment").regex(Pattern.quote(cleaned), "i"),
+                    Criteria.where("searchableText").regex(Pattern.quote(cleaned), "i")
+            );
+            mongoQuery.addCriteria(searchCriteria);
+            mongoQuery.with(Sort.by(Sort.Direction.DESC, "version"));
+            mongoQuery.limit(25);
+            matches = mongoTemplate.find(mongoQuery, VaultDocument.class);
+        } else {
+            matches = configurationRepository.findAll().stream()
+                    .filter(d -> (d.getApplicationName() != null && d.getApplicationName().toLowerCase().contains(cleaned.toLowerCase())) ||
+                            (d.getEnvironment() != null && d.getEnvironment().toLowerCase().contains(cleaned.toLowerCase())) ||
+                            (d.getSearchableText() != null && d.getSearchableText().toLowerCase().contains(cleaned.toLowerCase())))
+                    .limit(25)
+                    .toList();
+        }
+
+        List<ConfigSearchResult> results = new ArrayList<>();
+        for (VaultDocument doc : matches) {
+            Document decrypted = jsonTraverser.decryptDocument(doc.getPayload());
+            Map<String, Object> snippets = extractMatchingSnippets(decrypted, cleaned.toLowerCase());
+            float score = (float) (snippets.size() * 2.0 + (doc.getApplicationName().toLowerCase().contains(cleaned.toLowerCase()) ? 3.0 : 1.0));
+
+            results.add(new ConfigSearchResult(
+                    doc.getApplicationName(),
+                    doc.getEnvironment(),
+                    doc.getVersion(),
+                    doc.getDocumentHash(),
+                    doc.getCreatedAt(),
+                    score,
+                    snippets
+            ));
+        }
+
+        results.sort((a, b) -> Float.compare(b.getScore(), a.getScore()));
+        recordTelemetry("all", "all", "SEARCH", start, false, 200, "internal");
+        return results;
+    }
+
+    public String buildSearchableContent(String app, String env, Document payload, Map<String, String> tags) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(app).append(" ").append(env).append(" ");
+        if (tags != null) {
+            tags.forEach((k, v) -> sb.append(k).append(":").append(v).append(" "));
+        }
+        if (payload != null) {
+            flattenDocumentToSearch(payload, "", sb);
+        }
+        return sb.toString();
+    }
+
+    private void flattenDocumentToSearch(Document doc, String prefix, StringBuilder sb) {
+        for (Map.Entry<String, Object> entry : doc.entrySet()) {
+            String key = prefix.isEmpty() ? entry.getKey() : prefix + "." + entry.getKey();
+            Object val = entry.getValue();
+            sb.append(key).append(" ");
+            if (val instanceof Document childDoc) {
+                flattenDocumentToSearch(childDoc, key, sb);
+            } else if (val != null) {
+                sb.append(val.toString()).append(" ");
+            }
+        }
+    }
+
+    private Map<String, Object> extractMatchingSnippets(Document doc, String term) {
+        Map<String, Object> snippets = new LinkedHashMap<>();
+        flattenMatchingNodes(doc, "", term, snippets);
+        return snippets;
+    }
+
+    private void flattenMatchingNodes(Document doc, String prefix, String term, Map<String, Object> snippets) {
+        for (Map.Entry<String, Object> entry : doc.entrySet()) {
+            String key = prefix.isEmpty() ? entry.getKey() : prefix + "." + entry.getKey();
+            Object val = entry.getValue();
+            if (key.toLowerCase().contains(term) || (val != null && val.toString().toLowerCase().contains(term))) {
+                snippets.put(key, val instanceof Document ? "{...}" : val);
+            }
+            if (val instanceof Document childDoc && snippets.size() < 8) {
+                flattenMatchingNodes(childDoc, key, term, snippets);
+            }
+        }
+    }
+
+    private void recordTelemetry(String app, String env, String op, long startMs, boolean cacheHit, int statusCode, String ip) {
+        if (telemetryService != null) {
+            long lat = Math.max(1, System.currentTimeMillis() - startMs);
+            telemetryService.recordAccess(app, env, op, lat, cacheHit, statusCode, ip);
+        }
     }
 }

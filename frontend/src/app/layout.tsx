@@ -29,6 +29,8 @@ export const metadata: Metadata = {
     "Zero-knowledge temporal configuration repository with MongoDB field-level encryption, change streams, and audit logging.",
 };
 
+import { AppProviders } from "@/components/providers/AppProviders";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -39,7 +41,9 @@ export default function RootLayout({
       <body
         className={`${cormorantGaramond.variable} ${montserrat.variable} ${jetbrainsMono.variable} antialiased bg-[#090D16] text-[#F8FAFC]`}
       >
-        {children}
+        <AppProviders>
+          {children}
+        </AppProviders>
       </body>
     </html>
   );

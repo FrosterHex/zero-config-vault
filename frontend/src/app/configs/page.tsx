@@ -4,10 +4,12 @@ import React, { useState, useEffect, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { AccessibleFade } from "@/components/motion/AccessibleMotion";
+import { GlassCard3D } from "@/components/ui/GlassCard3D";
 import { ConfigDataGrid } from "@/components/configs/ConfigDataGrid";
 import { JsonTreeEditor } from "@/components/21st/JsonTreeEditor";
 import { IntegrityBadge } from "@/components/integrity-badge";
 import { SecretToggle } from "@/components/secret-toggle";
+import { useVault, Environment } from "@/context/VaultContext";
 import {
   vaultApi,
   ConfigResponse,
@@ -19,9 +21,6 @@ import {
   AlertCircle,
   CheckCircle2,
 } from "lucide-react";
-
-const APPS = ["payment-gateway", "order-service", "auth-service"];
-const ENVS = ["production", "staging", "development"];
 
 const DEFAULT_PAYLOAD: Record<string, unknown> = {
   server: {
@@ -50,10 +49,11 @@ const DEFAULT_PAYLOAD: Record<string, unknown> = {
 function ConfigsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { activeEnv, setActiveEnv, activeApp, setActiveApp, refreshKey, apps, envs } = useVault();
 
-  const [selectedApp, setSelectedApp] = useState(() => searchParams.get("app") || "payment-gateway");
-  const [selectedEnv, setSelectedEnv] = useState(() => searchParams.get("env") || "production");
-  const [masked, setMasked] = useState(false);
+  const [selectedApp, setSelectedApp] = useState(() => searchParams.get("app") || activeApp);
+  const [selectedEnv, setSelectedEnv] = useState<Environment>(() => (searchParams.get("env") as Environment) || activeEnv);
+  const [masked, setMasked] = useState(true);
 
   const [versions, setVersions] = useState<VersionSummary[]>([]);
   const [currentConfig, setCurrentConfig] = useState<ConfigResponse | null>(null);
@@ -67,68 +67,36 @@ function ConfigsContent() {
   const [pathQuery, setPathQuery] = useState("");
   const [pathResult, setPathResult] = useState<string | null>(null);
 
-  // Fetch versions list
-  const fetchVersions = useCallback(async () => {
-    try {
-      const list = await vaultApi.listVersions(selectedApp, selectedEnv);
-      setVersions(list);
-      return list;
-    } catch {
-      // Offline fallback: generate mock versions
-      const mockList: VersionSummary[] = [
-        {
-          version: 3,
-          documentHash: "b893f1246d88c221469e34927f8d68f6385a5358052069c90be68d18e95081c7",
-          tags: { release: "v2.4.0", author: "sec-team" },
-          createdAt: new Date().toISOString(),
-        },
-        {
-          version: 2,
-          documentHash: "a143f1146d88c221469e34927f8d68f6385a5358052069c90be68d18e95081b2",
-          tags: { release: "v2.3.1" },
-          createdAt: new Date(Date.now() - 3600000 * 24).toISOString(),
-        },
-        {
-          version: 1,
-          documentHash: "7c23f1146d88c221469e34927f8d68f6385a5358052069c90be68d18e95081a1",
-          tags: { release: "v2.0.0", initial: "true" },
-          createdAt: new Date(Date.now() - 3600000 * 72).toISOString(),
-        },
-      ];
-      setVersions(mockList);
-      return mockList;
+  // Sync with global context if activeApp / activeEnv changed
+  useEffect(() => {
+    if (activeApp && activeApp !== selectedApp) {
+      setSelectedApp(activeApp);
     }
-  }, [selectedApp, selectedEnv]);
+  }, [activeApp]);
+
+  useEffect(() => {
+    if (activeEnv && activeEnv !== selectedEnv) {
+      setSelectedEnv(activeEnv);
+    }
+  }, [activeEnv]);
 
   // Fetch active configuration
   const loadConfig = useCallback(
-    async (version?: number) => {
+    async (version?: number, overrideMasked?: boolean) => {
+      const isMasked = overrideMasked !== undefined ? overrideMasked : masked;
       setLoading(true);
       try {
         let resp: ConfigResponse;
         if (version) {
-          resp = await vaultApi.getConfigByVersion(selectedApp, selectedEnv, version, masked);
+          resp = await vaultApi.getConfigByVersion(selectedApp, selectedEnv, version, isMasked);
         } else {
-          resp = await vaultApi.getLatestConfig(selectedApp, selectedEnv, masked);
+          resp = await vaultApi.getLatestConfig(selectedApp, selectedEnv, isMasked);
         }
         setCurrentConfig(resp);
         setActiveVersion(resp.version);
         setEditorPayload(resp.payload || {});
-      } catch {
-        // Offline fallback
-        const mockResp: ConfigResponse = {
-          id: "doc-mock-6601",
-          applicationName: selectedApp,
-          environment: selectedEnv,
-          version: version || 3,
-          documentHash: "b893f1246d88c221469e34927f8d68f6385a5358052069c90be68d18e95081c7",
-          payload: DEFAULT_PAYLOAD,
-          tags: { env: selectedEnv, managedBy: "vault-core" },
-          createdAt: new Date().toISOString(),
-        };
-        setCurrentConfig(mockResp);
-        setActiveVersion(version || 3);
-        setEditorPayload(DEFAULT_PAYLOAD);
+      } catch (err) {
+        console.warn("Could not load config from vault:", err);
       } finally {
         setLoading(false);
       }
@@ -136,12 +104,40 @@ function ConfigsContent() {
     [selectedApp, selectedEnv, masked]
   );
 
+  // Fetch versions list
+  const fetchVersions = useCallback(async () => {
+    try {
+      const list = await vaultApi.listVersions(selectedApp, selectedEnv);
+      setVersions(list);
+      return list;
+    } catch {
+      setVersions([]);
+      return [];
+    }
+  }, [selectedApp, selectedEnv]);
+
+  // Load versions and config whenever app, env, or global refresh changes
   useEffect(() => {
+    let isMounted = true;
     fetchVersions().then((list) => {
-      const top = list.length > 0 ? list[0].version : undefined;
-      loadConfig(top);
+      if (!isMounted) return;
+      if (list.length > 0) {
+        loadConfig(list[0].version);
+      } else {
+        // Attempt get latest
+        loadConfig();
+      }
     });
-  }, [fetchVersions, loadConfig]);
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedApp, selectedEnv, refreshKey]);
+
+  // Handle secret toggle
+  const handleToggleMask = (newMasked: boolean) => {
+    setMasked(newMasked);
+    loadConfig(activeVersion, newMasked);
+  };
 
   // Handle Commit New Revision
   const handleCommitRevision = async (newPayload: Record<string, unknown>) => {
@@ -201,7 +197,7 @@ function ConfigsContent() {
       const res = await vaultApi.searchByPath(selectedApp, selectedEnv, pathQuery.trim());
       setPathResult(JSON.stringify(res.value));
     } catch {
-      // Local fallback lookup
+      // Local fallback lookup in current payload
       const keys = pathQuery.trim().split(".");
       let val: unknown = editorPayload;
       for (const k of keys) {
@@ -218,6 +214,12 @@ function ConfigsContent() {
 
   return (
     <DashboardShell>
+      {/* 3D Cyber Atmosphere Background Elements */}
+      <div className="pointer-events-none fixed inset-0 overflow-hidden -z-10 bg-grid-cyber">
+        <div className="absolute top-1/4 left-1/4 h-80 w-80 rounded-full bg-indigo-600/15 blur-[120px]" />
+        <div className="absolute top-1/3 right-1/4 h-80 w-80 rounded-full bg-purple-600/10 blur-[130px]" />
+      </div>
+
       {/* Editorial Header */}
       <AccessibleFade delay={0}>
         <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 pb-4 border-b border-white/10">
@@ -244,10 +246,13 @@ function ConfigsContent() {
               <span className="text-slate-400 font-mono text-[11px]">App:</span>
               <select
                 value={selectedApp}
-                onChange={(e) => setSelectedApp(e.target.value)}
+                onChange={(e) => {
+                  setSelectedApp(e.target.value);
+                  setActiveApp(e.target.value);
+                }}
                 className="bg-transparent font-mono text-white text-xs font-semibold focus:outline-none cursor-pointer"
               >
-                {APPS.map((app) => (
+                {apps.map((app) => (
                   <option key={app} value={app} className="bg-slate-900 text-white">
                     {app}
                   </option>
@@ -260,10 +265,14 @@ function ConfigsContent() {
               <span className="text-slate-400 font-mono text-[11px]">Env:</span>
               <select
                 value={selectedEnv}
-                onChange={(e) => setSelectedEnv(e.target.value)}
+                onChange={(e) => {
+                  const env = e.target.value as Environment;
+                  setSelectedEnv(env);
+                  setActiveEnv(env);
+                }}
                 className="bg-transparent font-mono text-white text-xs font-semibold focus:outline-none cursor-pointer"
               >
-                {ENVS.map((env) => (
+                {envs.map((env) => (
                   <option key={env} value={env} className="bg-slate-900 text-white">
                     {env}
                   </option>
@@ -300,8 +309,8 @@ function ConfigsContent() {
             {/* Integrity Badge */}
             {currentConfig && <IntegrityBadge hash={currentConfig.documentHash} />}
 
-            {/* Secret Masking Toggle */}
-            <SecretToggle masked={masked} onToggle={(m) => setMasked(m)} />
+            {/* Secret Masking Toggle (Masked vs Decrypted Plaintext) */}
+            <SecretToggle masked={masked} onToggle={handleToggleMask} />
           </div>
 
           {/* Dot-Notation Path Query Form */}
@@ -361,28 +370,32 @@ function ConfigsContent() {
         )}
       </AccessibleFade>
 
-      {/* Responsive Split Console Layout */}
+      {/* 3D Glassmorphic Responsive Split Console Layout */}
       <AccessibleFade delay={0.1}>
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-[580px]">
-          {/* Left Panel: Version History Data Grid */}
+          {/* Left Panel: Version History Data Grid with 3D Tilt */}
           <div className="lg:col-span-5 h-[580px]">
-            <ConfigDataGrid
-              versions={versions}
-              activeVersion={activeVersion}
-              onSelectVersion={(v) => loadConfig(v)}
-              onRollback={handleRollback}
-              onDiffWithLatest={(v) => {
-                router.push(`/diff?app=${selectedApp}&env=${selectedEnv}&v1=${v}&v2=${versions[0]?.version || 1}`);
-              }}
-            />
+            <GlassCard3D glowColor="indigo" className="h-full">
+              <ConfigDataGrid
+                versions={versions}
+                activeVersion={activeVersion}
+                onSelectVersion={(v) => loadConfig(v)}
+                onRollback={handleRollback}
+                onDiffWithLatest={(v) => {
+                  router.push(`/diff?app=${selectedApp}&env=${selectedEnv}&v1=${v}&v2=${versions[0]?.version || 1}`);
+                }}
+              />
+            </GlassCard3D>
           </div>
 
-          {/* Right Panel: Interactive JSON Tree & Code Editor */}
+          {/* Right Panel: Interactive JSON Tree & Code Editor with 3D Tilt */}
           <div className="lg:col-span-7 h-[580px]">
-            <JsonTreeEditor
-              initialValue={editorPayload}
-              onSave={handleCommitRevision}
-            />
+            <GlassCard3D glowColor="purple" className="h-full">
+              <JsonTreeEditor
+                initialValue={editorPayload}
+                onSave={handleCommitRevision}
+              />
+            </GlassCard3D>
           </div>
         </div>
       </AccessibleFade>

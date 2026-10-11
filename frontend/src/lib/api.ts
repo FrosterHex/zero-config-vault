@@ -35,10 +35,18 @@ export interface StatsResponse {
   totalApplications: number;
   totalEnvironments: number;
   totalVersions: number;
-  averageVersionsPerApplication: number;
-  auditLogCount: number;
-  cachedConfigCount: number;
-  mostRecentlyUpdated: {
+  averageVersionsPerApp?: number;
+  averageVersionsPerApplication?: number;
+  totalAuditEntries?: number;
+  auditLogCount?: number;
+  cacheDocumentCount?: number;
+  cachedConfigCount?: number;
+  mostRecentApp?: string;
+  mostRecentEnv?: string;
+  activeEnvironments?: string[];
+  versionCounts?: Record<string, number>;
+  storageSizeDistributions?: Record<string, unknown>;
+  mostRecentlyUpdated?: {
     applicationName: string;
     environment: string;
     version: number;
@@ -141,6 +149,30 @@ export const vaultApi = {
       createdAt: string;
     }>>(`/api/v1/vault/binaries/${app}/${env}`),
 
+  uploadBinary: async (app: string, env: string, file: File, metadata: Record<string, string> = {}) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    Object.entries(metadata).forEach(([k, v]) => formData.append(k, v));
+    const headers = new Headers();
+    headers.set("X-API-Key", DEFAULT_API_KEY);
+    const response = await fetch(`${BASE_URL}/api/v1/vault/binaries/${app}/${env}/upload`, {
+      method: "POST",
+      headers,
+      body: formData,
+    });
+    if (!response.ok) {
+      let errorMsg = `Upload failed: HTTP ${response.status}`;
+      try {
+        const errJson = await response.json();
+        if (errJson.message) errorMsg = errJson.message;
+      } catch {
+        // ignore
+      }
+      throw new Error(errorMsg);
+    }
+    return response.json();
+  },
+
   getBinaryDownloadUrl: (app: string, env: string, filename: string, version?: number) => {
     const vParam = version ? `?version=${version}&apiKey=${DEFAULT_API_KEY}` : `?apiKey=${DEFAULT_API_KEY}`;
     return `${BASE_URL}/api/v1/vault/binaries/${app}/${env}/${filename}${vParam}`;
@@ -186,7 +218,15 @@ export const vaultApi = {
     }),
 
   // Telemetry Dashboard
-  getStats: () => request<StatsResponse>(`/api/v1/vault/stats`),
+  getStats: async () => {
+    const raw = await request<StatsResponse>(`/api/v1/vault/stats`);
+    return {
+      ...raw,
+      averageVersionsPerApplication: raw.averageVersionsPerApp ?? raw.averageVersionsPerApplication ?? 0,
+      auditLogCount: raw.totalAuditEntries ?? raw.auditLogCount ?? 0,
+      cachedConfigCount: raw.cacheDocumentCount ?? raw.cachedConfigCount ?? 0,
+    };
+  },
 
   // Server-Sent Events (SSE) Stream
   subscribeToStream: (

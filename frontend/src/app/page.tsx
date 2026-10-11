@@ -1,12 +1,11 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React from "react";
 import Link from "next/link";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { AccessibleFade } from "@/components/motion/AccessibleMotion";
 import { VaultHologram3D } from "@/components/3d/VaultHologram3D";
 import { GlassCard3D } from "@/components/ui/GlassCard3D";
-import { vaultApi, StatsResponse } from "@/lib/api";
 import {
   Layers,
   GitCompare,
@@ -24,31 +23,16 @@ import {
   Zap,
 } from "lucide-react";
 
+import { useVault } from "@/context/VaultContext";
+
 export default function Home() {
-  const [stats, setStats] = useState<StatsResponse | null>(null);
-  const [loading, setLoading] = useState(false);
+  const { stats, loadingStats, triggerRefresh } = useVault();
 
-  const loadStats = async () => {
-    setLoading(true);
-    try {
-      const data = await vaultApi.getStats();
-      setStats(data);
-    } catch {
-      // Fallback
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadStats();
-  }, []);
-
-  const totalApps = stats?.totalApplications ?? 3;
+  const totalApps = stats?.totalApplications ?? 4;
   const totalEnvs = stats?.totalEnvironments ?? 3;
-  const totalVers = stats?.totalVersions ?? 7;
-  const auditLogs = stats?.auditLogCount ?? 128;
-  const cachedConfigs = stats?.cachedConfigCount ?? 14;
+  const totalVers = stats?.totalVersions ?? 13;
+  const auditLogs = stats?.totalAuditEntries ?? stats?.auditLogCount ?? 58;
+  const cachedConfigs = stats?.cacheDocumentCount ?? stats?.cachedConfigCount ?? 1;
 
   return (
     <DashboardShell>
@@ -111,11 +95,11 @@ export default function Home() {
                 </Link>
                 <button
                   type="button"
-                  onClick={loadStats}
+                  onClick={triggerRefresh}
                   title="Synchronize live stats"
                   className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 p-2.5 text-slate-400 hover:text-white transition-all"
                 >
-                  <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin text-indigo-400" : ""}`} />
+                  <RefreshCw className={`h-4 w-4 ${loadingStats ? "animate-spin text-indigo-400" : ""}`} />
                 </button>
               </div>
 

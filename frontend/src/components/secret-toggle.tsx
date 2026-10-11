@@ -1,5 +1,7 @@
+"use client";
+
 import React from "react";
-import { Eye, EyeOff } from "lucide-react";
+import { Lock, Unlock } from "lucide-react";
 
 interface SecretToggleProps {
   masked: boolean;
@@ -8,27 +10,36 @@ interface SecretToggleProps {
 
 export function SecretToggle({ masked, onToggle }: SecretToggleProps) {
   return (
-    <button
-      type="button"
-      onClick={() => onToggle(!masked)}
-      className={`inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
-        masked
-          ? "border-amber-500/30 bg-amber-950/20 text-amber-300 hover:border-amber-500/50 hover:bg-amber-950/30"
-          : "border-indigo-500/30 bg-indigo-950/20 text-indigo-300 hover:border-indigo-500/50 hover:bg-indigo-950/30"
-      }`}
-      title={masked ? "Click to reveal secrets" : "Click to mask secrets (********)"}
-    >
-      {masked ? (
-        <>
-          <EyeOff className="h-3.5 w-3.5" />
-          <span className="font-mono text-[11px] font-semibold">Masked View</span>
-        </>
-      ) : (
-        <>
-          <Eye className="h-3.5 w-3.5" />
-          <span className="font-mono text-[11px] font-semibold">Decrypted View</span>
-        </>
-      )}
-    </button>
+    <div className="inline-flex items-center rounded-lg border border-white/10 bg-black/40 p-0.5 text-xs font-mono">
+      {/* Masked Button */}
+      <button
+        type="button"
+        onClick={() => onToggle(true)}
+        className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 transition-all ${
+          masked
+            ? "bg-amber-600/30 border border-amber-500/40 text-amber-300 font-semibold shadow-sm"
+            : "text-slate-400 hover:text-white"
+        }`}
+        title="Mask sensitive keys with ********"
+      >
+        <Lock className="h-3 w-3 text-amber-400" />
+        <span>Masked (••••)</span>
+      </button>
+
+      {/* Decrypted Button */}
+      <button
+        type="button"
+        onClick={() => onToggle(false)}
+        className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 transition-all ${
+          !masked
+            ? "bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 font-semibold shadow-sm"
+            : "text-slate-400 hover:text-white"
+        }`}
+        title="Reveal plaintext decrypted secrets via AES-256-GCM envelope key"
+      >
+        <Unlock className="h-3 w-3 text-emerald-400" />
+        <span>Decrypted Plaintext</span>
+      </button>
+    </div>
   );
 }

@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { AccessibleFade } from "@/components/motion/AccessibleMotion";
 import { GlassCard3D } from "@/components/ui/GlassCard3D";
+import { useVault, Environment } from "@/context/VaultContext";
 import { vaultApi } from "@/lib/api";
 import {
   FileCode,
@@ -13,17 +14,30 @@ import {
   RefreshCw,
 } from "lucide-react";
 
-const APPS = ["payment-gateway", "order-service", "auth-service"];
-const ENVS = ["production", "staging", "development"];
-const FORMATS = ["json", "yaml", "env"];
+const FORMATS = ["yaml", "json", "env"];
 
 export default function ExportPage() {
-  const [selectedApp, setSelectedApp] = useState("payment-gateway");
-  const [selectedEnv, setSelectedEnv] = useState("production");
+  const { activeEnv, setActiveEnv, activeApp, setActiveApp, refreshKey, apps, envs } = useVault();
+
+  const [selectedApp, setSelectedApp] = useState(activeApp);
+  const [selectedEnv, setSelectedEnv] = useState<Environment>(activeEnv);
   const [format, setFormat] = useState("yaml");
   const [exportedText, setExportedText] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  // Sync with global context
+  useEffect(() => {
+    if (activeApp && activeApp !== selectedApp) {
+      setSelectedApp(activeApp);
+    }
+  }, [activeApp]);
+
+  useEffect(() => {
+    if (activeEnv && activeEnv !== selectedEnv) {
+      setSelectedEnv(activeEnv);
+    }
+  }, [activeEnv]);
 
   const loadExport = useCallback(async () => {
     setLoading(true);
@@ -36,27 +50,20 @@ export default function ExportPage() {
         const text = await res.text();
         setExportedText(text);
       } else {
-        setExportedText(`# Error loading export for ${selectedApp} in ${selectedEnv}`);
+        setExportedText(`# Zero-Config Vault Configuration Export
+# Application: ${selectedApp}
+# Environment: ${selectedEnv}
+# Format: ${format.toUpperCase()}
+# Status: No active configuration found for this scope. Ingest a configuration in Configuration Studio.`);
       }
     } catch {
-      setExportedText(`# Sample YAML Export for ${selectedApp}
-server:
-  port: 8443
-  timeoutMs: 3000
-  ssl:
-    enabled: true
-    protocol: TLSv1.3
-payment:
-  currency: USD
-  maxRetryAttempts: 5
-  gateways:
-    - stripe
-    - adyen
-    - paypal
+      setExportedText(`# Export for ${selectedApp} [${selectedEnv}]
 database:
-  host: db-cluster.internal.payment.prod
+  host: db-primary.internal
   port: 27017
-  name: prod_payments`);
+service:
+  name: ${selectedApp}
+  environment: ${selectedEnv}`);
     } finally {
       setLoading(false);
     }
@@ -64,7 +71,7 @@ database:
 
   useEffect(() => {
     loadExport();
-  }, [loadExport]);
+  }, [loadExport, refreshKey]);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(exportedText);
@@ -85,8 +92,10 @@ database:
 
   return (
     <DashboardShell>
+      {/* 3D Cyber Atmosphere Background Elements */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden -z-10 bg-grid-cyber">
-        <div className="absolute top-1/4 left-1/3 h-80 w-80 rounded-full bg-purple-600/10 blur-[130px]" />
+        <div className="absolute top-1/4 left-1/3 h-80 w-80 rounded-full bg-purple-600/15 blur-[130px]" />
+        <div className="absolute top-1/3 right-1/4 h-80 w-80 rounded-full bg-indigo-600/10 blur-[120px]" />
       </div>
 
       <AccessibleFade delay={0}>
@@ -108,24 +117,43 @@ database:
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <select
-              value={selectedApp}
-              onChange={(e) => setSelectedApp(e.target.value)}
-              className="rounded-lg border border-white/10 bg-slate-900/80 px-3 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-indigo-500"
-            >
-              {APPS.map((a) => (
-                <option key={a} value={a}>{a}</option>
-              ))}
-            </select>
-            <select
-              value={selectedEnv}
-              onChange={(e) => setSelectedEnv(e.target.value)}
-              className="rounded-lg border border-white/10 bg-slate-900/80 px-3 py-1.5 text-xs font-mono text-purple-400 focus:outline-none focus:border-purple-500"
-            >
-              {ENVS.map((e) => (
-                <option key={e} value={e}>{e}</option>
-              ))}
-            </select>
+            <div className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-slate-900/80 px-2.5 py-1 text-xs">
+              <span className="text-slate-400 font-mono text-[11px]">App:</span>
+              <select
+                value={selectedApp}
+                onChange={(e) => {
+                  setSelectedApp(e.target.value);
+                  setActiveApp(e.target.value);
+                }}
+                className="bg-transparent font-mono text-white text-xs font-semibold focus:outline-none cursor-pointer"
+              >
+                {apps.map((a) => (
+                  <option key={a} value={a} className="bg-slate-900 text-white">
+                    {a}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-slate-900/80 px-2.5 py-1 text-xs">
+              <span className="text-slate-400 font-mono text-[11px]">Env:</span>
+              <select
+                value={selectedEnv}
+                onChange={(e) => {
+                  const env = e.target.value as Environment;
+                  setSelectedEnv(env);
+                  setActiveEnv(env);
+                }}
+                className="bg-transparent font-mono text-purple-400 text-xs font-semibold focus:outline-none cursor-pointer"
+              >
+                {envs.map((e) => (
+                  <option key={e} value={e} className="bg-slate-900 text-white">
+                    {e}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div className="flex rounded-lg border border-white/10 bg-slate-900/80 p-0.5">
               {FORMATS.map((f) => (
                 <button
@@ -141,6 +169,7 @@ database:
                 </button>
               ))}
             </div>
+
             <button
               onClick={loadExport}
               className="rounded-lg border border-white/10 bg-white/5 p-2 text-slate-400 hover:text-white transition-colors"

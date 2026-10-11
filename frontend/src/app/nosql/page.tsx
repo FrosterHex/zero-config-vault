@@ -31,9 +31,9 @@ export default function NoSqlDeepDivePage() {
   const [simApp, setSimApp] = useState("payment-gateway");
   const [simEnv, setSimEnv] = useState("production");
 
-  const fetchData = async () => {
+  const handleRefresh = async () => {
+    setRefreshing(true);
     try {
-      setRefreshing(true);
       const [tel, sch] = await Promise.allSettled([
         vaultApi.getTelemetryStats(windowMinutes),
         vaultApi.getSchemaValidation(),
@@ -48,13 +48,41 @@ export default function NoSqlDeepDivePage() {
     } catch (err) {
       console.warn("Failed to fetch NoSQL deep-dive metrics", err);
     } finally {
-      setLoading(false);
       setRefreshing(false);
     }
   };
 
   useEffect(() => {
-    fetchData();
+    let isMounted = true;
+    const load = async () => {
+      setRefreshing(true);
+      try {
+        const [tel, sch] = await Promise.allSettled([
+          vaultApi.getTelemetryStats(windowMinutes),
+          vaultApi.getSchemaValidation(),
+        ]);
+
+        if (isMounted) {
+          if (tel.status === "fulfilled") {
+            setTelemetry(tel.value);
+          }
+          if (sch.status === "fulfilled") {
+            setSchemaInfo(sch.value);
+          }
+        }
+      } catch (err) {
+        console.warn("Failed to fetch NoSQL deep-dive metrics", err);
+      } finally {
+        if (isMounted) {
+          setRefreshing(false);
+        }
+      }
+    };
+
+    load();
+    return () => {
+      isMounted = false;
+    };
   }, [windowMinutes]);
 
   // Compute Murmur3/MD5 hash simulation for Shard Key
@@ -116,7 +144,7 @@ export default function NoSqlDeepDivePage() {
               </div>
 
               <button
-                onClick={fetchData}
+                onClick={handleRefresh}
                 disabled={refreshing}
                 className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 px-4 py-2 text-xs font-mono text-slate-300 hover:text-white transition-all shrink-0"
               >

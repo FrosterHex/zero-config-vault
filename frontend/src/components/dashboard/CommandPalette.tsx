@@ -18,12 +18,16 @@ import {
   Sparkles,
 } from "lucide-react";
 
+import { SearchResult } from "@/lib/api";
+
 export function CommandPalette() {
   const router = useRouter();
   const { isSearchOpen, setIsSearchOpen, apps, activeEnv, setActiveApp } = useVault();
   const [query, setQuery] = useState("");
   const [pathResult, setPathResult] = useState<{ path: string; value: string } | null>(null);
   const [searchingPath, setSearchingPath] = useState(false);
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [searchingText, setSearchingText] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Keyboard shortcut listener: Cmd+K / Ctrl+K & Escape
@@ -47,6 +51,7 @@ export function CommandPalette() {
       setTimeout(() => inputRef.current?.focus(), 50);
       setQuery("");
       setPathResult(null);
+      setSearchResults([]);
     }
   }, [isSearchOpen]);
 
@@ -73,6 +78,29 @@ export function CommandPalette() {
     return () => clearTimeout(timer);
   }, [query, apps, activeEnv]);
 
+  // Handle MongoDB Full-Text search when query has 2+ characters without dots
+  useEffect(() => {
+    const trimmed = query.trim();
+    if (trimmed.length < 2 || trimmed.includes(".")) {
+      setSearchResults([]);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setSearchingText(true);
+      try {
+        const res = await vaultApi.searchConfigs(trimmed);
+        setSearchResults(res || []);
+      } catch {
+        setSearchResults([]);
+      } finally {
+        setSearchingText(false);
+      }
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [query]);
+
   if (!isSearchOpen) return null;
 
   const q = query.toLowerCase().trim();
@@ -80,6 +108,7 @@ export function CommandPalette() {
   // Navigation modules
   const modules = [
     { title: "Configuration Studio", href: "/configs", icon: Layers, desc: "JSON tree editor, encryption badges, temporal rollback" },
+    { title: "NoSQL Deep Dive & Sharding", href: "/nosql", icon: Database, desc: "Native Time-Series analytics, $jsonSchema rules, and Sharding topology" },
     { title: "Delta Studio & Diff Engine", href: "/diff", icon: GitCompare, desc: "Compare any two revisions with colorized additions & removals" },
     { title: "GridFS Binary Keystores", href: "/binaries", icon: HardDrive, desc: "Upload and download TLS certs, PEM, and .jks files" },
     { title: "Export Studio", href: "/export", icon: FileCode, desc: "Export live configs into YAML, JSON, or .env format" },
@@ -164,6 +193,59 @@ export function CommandPalette() {
                   Path &quot;{query}&quot; not found in active document root.
                 </p>
               )}
+            </div>
+          )}
+
+          {/* MongoDB Full-Text Search Results */}
+          {searchingText && (
+            <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-slate-400 font-mono text-[11px] flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-cyan-400 animate-ping" />
+              Executing MongoDB $text index query across collections...
+            </div>
+          )}
+
+          {searchResults.length > 0 && (
+            <div>
+              <div className="flex items-center justify-between text-[10px] font-mono uppercase tracking-wider text-cyan-400 px-2 mb-1.5">
+                <span>MongoDB Full-Text Matches ($text Index)</span>
+                <span>{searchResults.length} Document(s) Found</span>
+              </div>
+              <div className="space-y-1.5">
+                {searchResults.map((sr, idx) => (
+                  <button
+                    key={`${sr.applicationName}-${sr.environment}-${sr.version}-${idx}`}
+                    onClick={() => {
+                      setActiveApp(sr.applicationName);
+                      setIsSearchOpen(false);
+                      router.push(`/configs?app=${encodeURIComponent(sr.applicationName)}&env=${encodeURIComponent(sr.environment)}&v=${sr.version}`);
+                    }}
+                    className="w-full rounded-xl border border-cyan-500/20 bg-cyan-950/20 hover:bg-cyan-900/30 p-2.5 text-left transition-all group"
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2 font-mono">
+                        <span className="font-bold text-white group-hover:text-cyan-300">{sr.applicationName}</span>
+                        <span className="rounded bg-cyan-500/20 text-cyan-300 px-1.5 py-0.5 text-[10px]">{sr.environment}</span>
+                        <span className="text-slate-400 text-[10px]">v{sr.version}</span>
+                      </div>
+                      <span className="text-[10px] font-mono text-cyan-400 group-hover:translate-x-0.5 transition-transform flex items-center gap-1">
+                        View Config <ArrowRight className="h-3 w-3" />
+                      </span>
+                    </div>
+
+                    {sr.matchingSnippets && Object.keys(sr.matchingSnippets).length > 0 && (
+                      <div className="mt-1 pt-1 border-t border-cyan-500/10 space-y-0.5">
+                        {Object.entries(sr.matchingSnippets).slice(0, 3).map(([path, val]) => (
+                          <div key={path} className="font-mono text-[11px] text-slate-300 truncate">
+                            <span className="text-cyan-400/80">{path}</span>
+                            <span className="text-slate-500">: </span>
+                            <span className="text-emerald-400">{typeof val === "object" ? JSON.stringify(val) : String(val)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 

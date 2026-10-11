@@ -210,4 +210,17 @@ public class ConfigurationController {
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + result.getFileName() + "\"")
                 .body(result.getContent());
     }
+
+    /**
+     * MongoDB Full-Text and Regex search across configurations.
+     */
+    @GetMapping("/search")
+    public ResponseEntity<List<com.vault.configmanager.dto.response.ConfigSearchResult>> searchConfigs(
+            @RequestParam(value = "query", required = false) String query,
+            @RequestParam(value = "q", required = false) String q) {
+        String searchTerm = (query != null && !query.isBlank()) ? query : q;
+        List<com.vault.configmanager.dto.response.ConfigSearchResult> results =
+                configurationService.searchConfigurations(searchTerm);
+        return ResponseEntity.ok(results);
+    }
 }

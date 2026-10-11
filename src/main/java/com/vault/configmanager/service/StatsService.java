@@ -217,4 +217,30 @@ public class StatsService {
             stats.setStorageSizeDistributions(defaults);
         }
     }
+
+    /**
+     * Retrieves active MongoDB $jsonSchema validation rules and status.
+     */
+    public com.vault.configmanager.dto.response.SchemaValidationInfo getSchemaValidationInfo() {
+        Document schema = com.vault.configmanager.config.MongoConfig.buildConfigurationJsonSchema();
+        List<String> required = List.of("applicationName", "environment", "version", "documentHash", "payload", "createdAt");
+
+        Map<String, Object> rules = new LinkedHashMap<>();
+        rules.put("applicationName", Map.of("type", "string", "pattern", "^[a-zA-Z0-9_-]+$", "rule", "Alphanumeric slug"));
+        rules.put("environment", Map.of("type", "string", "enum", List.of("development", "staging", "production", "dr"), "rule", "Strict Environment Tier"));
+        rules.put("version", Map.of("type", "int", "minimum", 1, "rule", "Strict Monotonic Version Integer"));
+        rules.put("documentHash", Map.of("type", "string", "minLength", 64, "maxLength", 128, "rule", "SHA-512 Canonical Integrity Signature"));
+        rules.put("payload", Map.of("type", "object", "rule", "Dynamic BSON configuration tree"));
+        rules.put("createdAt", Map.of("type", "date/string", "rule", "Audit Timestamp"));
+
+        return new com.vault.configmanager.dto.response.SchemaValidationInfo(
+                "configurations",
+                true,
+                "MODERATE",
+                "ERROR",
+                required,
+                rules,
+                schema.toJson()
+        );
+    }
 }

@@ -44,6 +44,9 @@ public class VaultDocument {
     @Indexed(expireAfter = "90d")
     private LocalDateTime expiresAt;
 
+    @org.springframework.data.mongodb.core.index.TextIndexed(weight = 2)
+    private String searchableText;
+
     public VaultDocument() {
         this.tags = new HashMap<>();
         this.payload = new Document();
@@ -149,6 +152,14 @@ public class VaultDocument {
 
     public void setExpiresAt(LocalDateTime expiresAt) {
         this.expiresAt = expiresAt;
+    }
+
+    public String getSearchableText() {
+        return searchableText;
+    }
+
+    public void setSearchableText(String searchableText) {
+        this.searchableText = searchableText;
     }
 
     // --- equals, hashCode, toString ---

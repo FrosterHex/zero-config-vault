@@ -18,15 +18,17 @@
 1. [Overview](#-overview)
 2. [Architectural Highlights](#-architectural-highlights)
 3. [System Architecture Diagram](#-system-architecture-diagram)
-4. [Cryptographic & Security Blueprint](#-cryptographic--security-blueprint)
-5. [GitOps Temporal Versioning & Delta Engine](#-gitops-temporal-versioning--delta-engine)
-6. [Real-Time SSE & Change Streams](#-real-time-sse--change-streams)
-7. [Spring Boot Client Starter](#-spring-boot-client-starter)
-8. [Frontend Dashboard Architecture](#-frontend-dashboard-architecture)
-9. [Quickstart: Docker Compose](#-quickstart-docker-compose)
-10. [Local Development](#-local-development)
-11. [REST API Catalog](#-rest-api-catalog)
-12. [Automated Verification & Test Harness](#-automated-verification--test-harness)
+4. [Advanced NoSQL & MongoDB Capabilities](#-advanced-nosql--mongodb-capabilities)
+5. [Horizontal Sharding & Distributed Scalability](#-horizontal-sharding--distributed-scalability)
+6. [Cryptographic & Security Blueprint](#-cryptographic--security-blueprint)
+7. [GitOps Temporal Versioning & Delta Engine](#-gitops-temporal-versioning--delta-engine)
+8. [Real-Time SSE & Change Streams](#-real-time-sse--change-streams)
+9. [Spring Boot Client Starter](#-spring-boot-client-starter)
+10. [Frontend Dashboard Architecture](#-frontend-dashboard-architecture)
+11. [Quickstart: Docker Compose](#-quickstart-docker-compose)
+12. [Local Development](#-local-development)
+13. [REST API Catalog](#-rest-api-catalog)
+14. [Automated Verification & Test Harness](#-automated-verification--test-harness)
 
 ---
 
@@ -92,6 +94,39 @@ flowchart TD
     SSE -.->|"Live SSE Push"| MS
     SSE -.->|"Live SSE Push"| UI
 ```
+
+---
+
+## ⚡ Advanced NoSQL & MongoDB Capabilities
+
+Zero-Config Vault pushes MongoDB 7.0 to its architectural limits by utilizing native database engine features that eliminate third-party caching, queuing, and search infrastructure:
+
+### 1. MongoDB Native Time-Series Collections (`timeseries`)
+Access telemetry is recorded in a native time-series collection (`config_access_telemetry`):
+- **timeField**: `timestamp`
+- **metaField**: `metadata` (`applicationName`, `environment`, `operation`, `clientIp`)
+- **granularity**: `SECONDS`
+Aggregated via MongoDB's high-speed bucketing pipelines to deliver sub-millisecond throughput analytics and cache hit efficiency metrics directly to the dashboard.
+
+### 2. Engine-Level Schema Validation (`$jsonSchema`)
+Structural governance is enforced directly at the MongoDB storage engine level via `$jsonSchema`:
+- Mandatory presence of `applicationName`, `environment`, `version`, `documentHash`, and `payload`.
+- Strict regex slug constraints and environment enum validation (`["development", "staging", "production", "dr"]`).
+- Rejects corrupt or unauthorized direct database insertions with native MongoDB `DocumentValidationFailure` (Error Code 121).
+
+### 3. Full-Text Search Index (`$text`)
+MongoDB Full-Text text indexing on `{ applicationName: "text", searchableText: "text", environment: "text" }` powers instantaneous global search across thousands of configurations, returning matching key paths, deep links, and highlighted snippets.
+
+---
+
+## 🌐 Horizontal Sharding & Distributed Scalability
+
+For full details on the multi-shard cluster design, refer to the **[MongoDB Sharding Blueprint](file:///d:/college/Sem/Sem%207/NoSQL%20Databases/Project/Zero-Config%20Vault/SHARDING.md)**.
+
+- **Compound Shard Key**: `{ "applicationName": "hashed", "environment": 1 }`
+- **Uniform Write Distribution**: MongoDB Murmur3 hashing guarantees even write dispersal without monotonic version hotspots.
+- **Single-Shard Targeted Querying**: `mongos` dispatches operational reads directly to a single shard, eliminating scatter-gather broadcast overhead.
+- **Zone Sharding**: Dedicated NVMe SSD shards for `production` configurations (`ZONE_PROD_TIER1`) isolated from commodity dev/staging nodes.
 
 ---
 
@@ -305,6 +340,7 @@ All `/api/v1/vault/**` endpoints require an `X-API-Key` header.
 | `GET` | `/api/v1/vault/config/{app}/{env}/versions` | List all historical version summaries |
 | `GET` | `/api/v1/vault/config/{app}/{env}/versions/{version}` | Get specific historical snapshot |
 | `GET` | `/api/v1/vault/config/{app}/{env}/path?path=...` | Query nested value by dot-notation path |
+| `GET` | `/api/v1/vault/config/search?query=...` | MongoDB Full-Text ($text index) & regex search |
 | `POST` | `/api/v1/vault/config/{app}/{env}/rollback` | Atomically rollback to target version |
 | `POST` | `/api/v1/vault/config/bulk?atomic=true` | Bulk import configs with ACID transaction |
 
@@ -325,6 +361,8 @@ All `/api/v1/vault/**` endpoints require an `X-API-Key` header.
 | Method | Endpoint | Description |
 | :--- | :--- | :--- |
 | `GET` | `/api/v1/vault/stats` | MongoDB aggregation pipeline system metrics |
+| `GET` | `/api/v1/vault/stats/telemetry?minutes=...` | Native Time-Series request latency & cache ratio |
+| `GET` | `/api/v1/vault/stats/schema` | Engine-level MongoDB $jsonSchema validation rules |
 | `POST` | `/api/v1/vault/keys` | Create scoped API key (Requires `ADMIN` role) |
 | `GET` | `/api/v1/vault/keys` | List active scoped API keys (`ADMIN` role) |
 
@@ -332,14 +370,14 @@ All `/api/v1/vault/**` endpoints require an `X-API-Key` header.
 
 ## 🧪 Automated Verification & Test Harness
 
-Zero-Config Vault includes automated cross-platform test scripts that exercise the complete operational surface:
+Zero-Config Vault includes automated cross-platform test scripts for local integration testing (kept locally on developer machines and git-ignored to prevent credential exposure):
 
-### Run via PowerShell (Windows)
+### Run via PowerShell (Windows Local Harness)
 ```powershell
 .\verify-vault.ps1
 ```
 
-### Run via Bash (Linux / macOS)
+### Run via Bash (Linux / macOS Local Harness)
 ```bash
 chmod +x ./verify-vault.sh
 ./verify-vault.sh

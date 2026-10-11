@@ -44,7 +44,6 @@ public class VaultDocument {
     @Indexed(expireAfter = "90d")
     private LocalDateTime expiresAt;
 
-    @org.springframework.data.mongodb.core.index.TextIndexed(weight = 2)
     private String searchableText;
 
     public VaultDocument() {

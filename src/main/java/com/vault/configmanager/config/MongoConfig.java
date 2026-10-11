@@ -132,12 +132,23 @@ public class MongoConfig {
             // 4. Initialize Full-Text Search Index on configurations
             try {
                 if (collections.contains("configurations")) {
-                    db.getCollection("configurations").createIndex(
-                            new Document("applicationName", "text")
-                                    .append("searchableText", "text")
-                                    .append("environment", "text"),
-                            new com.mongodb.client.model.IndexOptions().name("idx_configurations_text_search")
-                    );
+                    boolean hasTextIndex = false;
+                    for (Document idx : db.getCollection("configurations").listIndexes()) {
+                        String name = idx.getString("name");
+                        Document key = idx.get("key", Document.class);
+                        if ("idx_configurations_text_search".equals(name) || (key != null && key.containsKey("_fts"))) {
+                            hasTextIndex = true;
+                            break;
+                        }
+                    }
+                    if (!hasTextIndex) {
+                        db.getCollection("configurations").createIndex(
+                                new Document("applicationName", "text")
+                                        .append("searchableText", "text")
+                                        .append("environment", "text"),
+                                new com.mongodb.client.model.IndexOptions().name("idx_configurations_text_search")
+                        );
+                    }
                 }
             } catch (Exception e) {
                 // Non-blocking text index creation

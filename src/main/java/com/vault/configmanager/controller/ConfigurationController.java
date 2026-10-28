@@ -8,6 +8,7 @@ import com.vault.configmanager.dto.response.DiffResponse;
 import com.vault.configmanager.dto.response.VersionSummary;
 import com.vault.configmanager.model.ApiKey;
 import com.vault.configmanager.security.ApiKeyAuthFilter;
+import com.vault.configmanager.security.SecretVisibility;
 import com.vault.configmanager.dto.response.ExportResult;
 import com.vault.configmanager.service.ApiKeyService;
 import com.vault.configmanager.service.ConfigurationService;
@@ -60,6 +61,7 @@ public class ConfigurationController {
                 request.getApplicationName(), request.getEnvironment());
 
         ConfigResponse response = configurationService.createConfiguration(request, ip, maskedKey);
+        maskIfRequired(response, false, servletRequest);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -85,6 +87,11 @@ public class ConfigurationController {
         }
 
         BulkConfigResponse response = configurationService.bulkImport(bulkRequest, atomic, ip, maskedKey);
+        if (response != null && response.getResults() != null) {
+            for (ConfigResponse result : response.getResults()) {
+                maskIfRequired(result, false, servletRequest);
+            }
+        }
         return ResponseEntity.ok(response);
     }
 
@@ -102,9 +109,7 @@ public class ConfigurationController {
         String maskedKey = (String) servletRequest.getAttribute(ApiKeyAuthFilter.MASKED_KEY_ATTR);
 
         ConfigResponse response = configurationService.getLatestConfiguration(app, env, ip, maskedKey);
-        if (masked && response != null && response.getPayload() != null) {
-            response.setPayload(SecretMaskingUtil.maskMap(response.getPayload()));
-        }
+        maskIfRequired(response, masked, servletRequest);
         return ResponseEntity.ok(response);
     }
 
@@ -116,8 +121,12 @@ public class ConfigurationController {
             @PathVariable String app,
             @PathVariable String env,
             @RequestParam int v1,
-            @RequestParam int v2) {
+            @RequestParam int v2,
+            HttpServletRequest servletRequest) {
         DiffResponse diff = configurationService.diffVersions(app, env, v1, v2);
+        if (!SecretVisibility.canReveal(servletRequest)) {
+            diff = SecretMaskingUtil.maskDiff(diff);
+        }
         return ResponseEntity.ok(diff);
     }
 
@@ -134,6 +143,9 @@ public class ConfigurationController {
         String maskedKey = (String) servletRequest.getAttribute(ApiKeyAuthFilter.MASKED_KEY_ATTR);
 
         Object result = configurationService.searchByPath(app, env, path, ip, maskedKey);
+        if (!SecretVisibility.canReveal(servletRequest) && SecretMaskingUtil.isSensitivePath(path)) {
+            result = SecretMaskingUtil.MASKED_PLACEHOLDER;
+        }
         return ResponseEntity.ok(Map.of("path", path, "value", result));
     }
 
@@ -152,9 +164,7 @@ public class ConfigurationController {
         String maskedKey = (String) servletRequest.getAttribute(ApiKeyAuthFilter.MASKED_KEY_ATTR);
 
         ConfigResponse response = configurationService.getConfigurationByVersion(app, env, version, ip, maskedKey);
-        if (masked && response != null && response.getPayload() != null) {
-            response.setPayload(SecretMaskingUtil.maskMap(response.getPayload()));
-        }
+        maskIfRequired(response, masked, servletRequest);
         return ResponseEntity.ok(response);
     }
 
@@ -182,6 +192,7 @@ public class ConfigurationController {
         String maskedKey = (String) servletRequest.getAttribute(ApiKeyAuthFilter.MASKED_KEY_ATTR);
 
         ConfigResponse response = configurationService.updateConfigurationPartial(app, env, partialPayload, ip, maskedKey);
+        maskIfRequired(response, false, servletRequest);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -198,6 +209,7 @@ public class ConfigurationController {
         String maskedKey = (String) servletRequest.getAttribute(ApiKeyAuthFilter.MASKED_KEY_ATTR);
 
         ConfigResponse response = configurationService.rollbackToVersion(app, env, version, ip, maskedKey);
+        maskIfRequired(response, false, servletRequest);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -236,6 +248,16 @@ public class ConfigurationController {
         List<com.vault.configmanager.dto.response.ConfigSearchResult> results =
                 configurationService.searchConfigurations(searchTerm, authenticatedKey(servletRequest));
         return ResponseEntity.ok(results);
+    }
+
+    /**
+     * Masks the payload when the caller asked for it or lacks REVEAL_SECRETS.
+     */
+    private static void maskIfRequired(ConfigResponse response, boolean requested, HttpServletRequest servletRequest) {
+        if ((requested || !SecretVisibility.canReveal(servletRequest))
+                && response != null && response.getPayload() != null) {
+            response.setPayload(SecretMaskingUtil.maskMap(response.getPayload()));
+        }
     }
 
     private static ApiKey authenticatedKey(HttpServletRequest servletRequest) {

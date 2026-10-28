@@ -8,5 +8,6 @@ public enum ApiKeyRole {
     WRITE,
     ROLLBACK,
     EXPORT,
+    REVEAL_SECRETS,
     ADMIN
 }

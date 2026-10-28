@@ -8,15 +8,11 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
-import java.util.Arrays;
-import java.util.List;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -35,20 +31,14 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
     private static final Pattern APP_ENV_PATTERN =
             Pattern.compile("^/api/v1/vault/(?:config|export|stream|binaries)/([^/?#]+)/([^/?#]+)(?:/.*)?$");
 
-    private final List<String> validApiKeys;
+    // Path tricks that could make the raw URI disagree with the path Spring routes on
+    private static final Pattern AMBIGUOUS_PATH_PATTERN =
+            Pattern.compile("(?i)(/\\.{1,2}(/|$)|;|\\\\|%2e|%2f|%3b|%5c)");
+
     private final ObjectMapper objectMapper;
     private final ApiKeyService apiKeyService;
 
-    public ApiKeyAuthFilter(@Value("${vault.api.keys:sk-dev-key-001,sk-dev-key-002}") String apiKeysConfig,
-                            ObjectMapper objectMapper) {
-        this(apiKeysConfig, objectMapper, null);
-    }
-
-    @Autowired
-    public ApiKeyAuthFilter(@Value("${vault.api.keys:sk-dev-key-001,sk-dev-key-002}") String apiKeysConfig,
-                            ObjectMapper objectMapper,
-                            @Autowired(required = false) ApiKeyService apiKeyService) {
-        this.validApiKeys = Arrays.asList(apiKeysConfig.split(","));
+    public ApiKeyAuthFilter(ObjectMapper objectMapper, ApiKeyService apiKeyService) {
         this.objectMapper = objectMapper;
         this.apiKeyService = apiKeyService;
     }
@@ -79,63 +69,64 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
             return;
         }
 
-        String rawApiKey = request.getHeader(API_KEY_HEADER);
-        if (rawApiKey == null || rawApiKey.isBlank()) {
-            rawApiKey = request.getParameter("apiKey");
+        if (AMBIGUOUS_PATH_PATTERN.matcher(requestUri).find()) {
+            writeError(response, HttpServletResponse.SC_BAD_REQUEST, "Bad Request", "Ambiguous request path.");
+            return;
         }
-        if (rawApiKey == null || rawApiKey.isBlank()) {
-            rawApiKey = request.getParameter("key");
+
+        String rawApiKey = request.getHeader(API_KEY_HEADER);
+        if ((rawApiKey == null || rawApiKey.isBlank()) && allowsQueryParamKey(request.getMethod(), requestUri)) {
+            // Browsers cannot attach headers to EventSource streams or plain download links
+            rawApiKey = request.getParameter("apiKey");
         }
 
         if (rawApiKey == null || rawApiKey.isBlank()) {
-            writeUnauthorized(response, "Missing API key. Provide a valid X-API-Key header or apiKey query parameter.");
+            writeUnauthorized(response, "Missing API key. Provide a valid X-API-Key header.");
             return;
         }
 
         rawApiKey = rawApiKey.trim();
 
-        ApiKey authenticatedKey = null;
-
-        // 1. Authenticate via ApiKeyService from the api_keys collection
-        if (apiKeyService != null) {
-            Optional<ApiKey> keyOpt = apiKeyService.validateAndAuthenticate(rawApiKey);
-            if (keyOpt.isPresent()) {
-                authenticatedKey = keyOpt.get();
-            }
+        // 1. Authenticate against the api_keys collection (the only source of credentials)
+        Optional<ApiKey> keyOpt = apiKeyService.validateAndAuthenticate(rawApiKey);
+        if (keyOpt.isEmpty()) {
+            writeUnauthorized(response, "Invalid API key.");
+            return;
         }
+        ApiKey authenticatedKey = keyOpt.get();
 
-        // 2. Fall back to bootstrap/static configured keys if not found in MongoDB
-        if (authenticatedKey == null) {
-            if (!validApiKeys.contains(rawApiKey)) {
-                writeUnauthorized(response, "Invalid API key.");
-                return;
-            }
+        // 2. Granular RBAC and scope authorization. Endpoints whose app/env arrive in the
+        //    request body or span many apps enforce scope again in the controller/service.
+        String requiredRole = determineRequiredRole(request.getMethod(), requestUri);
+        String[] appAndEnv = extractAppAndEnv(requestUri);
+        String app = appAndEnv[0];
+        String env = appAndEnv[1];
+
+        boolean authorized = apiKeyService.authorize(authenticatedKey, requiredRole, app, env);
+        if (!authorized) {
+            writeForbidden(response, "API key unauthorized for role '" + requiredRole +
+                    "' on app='" + (app != null ? app : "*") +
+                    "', env='" + (env != null ? env : "*") + "'");
+            return;
         }
-
-        // 3. Granular RBAC and Scope Authorization
-        if (authenticatedKey != null && apiKeyService != null) {
-            String requiredRole = determineRequiredRole(request.getMethod(), requestUri);
-            String[] appAndEnv = extractAppAndEnv(requestUri);
-            String app = appAndEnv[0];
-            String env = appAndEnv[1];
-
-            boolean authorized = apiKeyService.authorize(authenticatedKey, requiredRole, app, env);
-            if (!authorized) {
-                writeForbidden(response, "API key unauthorized for role '" + requiredRole +
-                        "' on app='" + (app != null ? app : "*") +
-                        "', env='" + (env != null ? env : "*") + "'");
-                return;
-            }
-            request.setAttribute(AUTHENTICATED_KEY_ATTR, authenticatedKey);
-        }
+        request.setAttribute(AUTHENTICATED_KEY_ATTR, authenticatedKey);
 
         // Store masked key for downstream audit logging
         request.setAttribute(MASKED_KEY_ATTR, maskApiKey(rawApiKey));
         filterChain.doFilter(request, response);
     }
 
+    private boolean allowsQueryParamKey(String method, String uri) {
+        return "GET".equalsIgnoreCase(method)
+                && (uri.startsWith("/api/v1/vault/stream/") || uri.startsWith("/api/v1/vault/binaries/"));
+    }
+
     private String determineRequiredRole(String method, String uri) {
         if (uri.startsWith("/api/v1/vault/keys")) {
+            return "ADMIN";
+        }
+        if (uri.equals("/api/v1/vault/stream") || uri.equals("/api/v1/vault/stream/")) {
+            // The global stream spans every app and environment
             return "ADMIN";
         }
         if (uri.contains("/export")) {
@@ -166,26 +157,20 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
     }
 
     private void writeUnauthorized(HttpServletResponse response, String message) throws IOException {
-        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-        response.setContentType("application/json");
-
-        ApiErrorResponse errorResponse = new ApiErrorResponse(
-                401,
-                "Unauthorized",
-                message,
-                LocalDateTime.now()
-        );
-
-        response.getWriter().write(objectMapper.writeValueAsString(errorResponse));
+        writeError(response, HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized", message);
     }
 
     private void writeForbidden(HttpServletResponse response, String message) throws IOException {
-        response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+        writeError(response, HttpServletResponse.SC_FORBIDDEN, "Forbidden", message);
+    }
+
+    private void writeError(HttpServletResponse response, int status, String error, String message) throws IOException {
+        response.setStatus(status);
         response.setContentType("application/json");
 
         ApiErrorResponse errorResponse = new ApiErrorResponse(
-                403,
-                "Forbidden",
+                status,
+                error,
                 message,
                 LocalDateTime.now()
         );

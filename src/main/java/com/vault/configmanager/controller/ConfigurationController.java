@@ -6,8 +6,10 @@ import com.vault.configmanager.dto.response.BulkConfigResponse;
 import com.vault.configmanager.dto.response.ConfigResponse;
 import com.vault.configmanager.dto.response.DiffResponse;
 import com.vault.configmanager.dto.response.VersionSummary;
+import com.vault.configmanager.model.ApiKey;
 import com.vault.configmanager.security.ApiKeyAuthFilter;
 import com.vault.configmanager.dto.response.ExportResult;
+import com.vault.configmanager.service.ApiKeyService;
 import com.vault.configmanager.service.ConfigurationService;
 import com.vault.configmanager.service.ExportService;
 import com.vault.configmanager.util.SecretMaskingUtil;
@@ -32,16 +34,15 @@ public class ConfigurationController {
 
     private final ConfigurationService configurationService;
     private final ExportService exportService;
+    private final ApiKeyService apiKeyService;
 
     @Autowired
     public ConfigurationController(ConfigurationService configurationService,
-                                   @Autowired(required = false) ExportService exportService) {
+                                   @Autowired(required = false) ExportService exportService,
+                                   ApiKeyService apiKeyService) {
         this.configurationService = configurationService;
         this.exportService = exportService;
-    }
-
-    public ConfigurationController(ConfigurationService configurationService) {
-        this(configurationService, null);
+        this.apiKeyService = apiKeyService;
     }
 
     /**
@@ -53,6 +54,10 @@ public class ConfigurationController {
             HttpServletRequest servletRequest) {
         String ip = servletRequest.getRemoteAddr();
         String maskedKey = (String) servletRequest.getAttribute(ApiKeyAuthFilter.MASKED_KEY_ATTR);
+
+        // app/env come from the body, so the filter could not check scope for them
+        apiKeyService.requireScope(authenticatedKey(servletRequest), "WRITE",
+                request.getApplicationName(), request.getEnvironment());
 
         ConfigResponse response = configurationService.createConfiguration(request, ip, maskedKey);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
@@ -70,6 +75,14 @@ public class ConfigurationController {
             HttpServletRequest servletRequest) {
         String ip = servletRequest.getRemoteAddr();
         String maskedKey = (String) servletRequest.getAttribute(ApiKeyAuthFilter.MASKED_KEY_ATTR);
+
+        // Reject the whole batch up front if any entry is outside the key's scope
+        ApiKey key = authenticatedKey(servletRequest);
+        if (bulkRequest.getConfigs() != null) {
+            for (ConfigRequest config : bulkRequest.getConfigs()) {
+                apiKeyService.requireScope(key, "WRITE", config.getApplicationName(), config.getEnvironment());
+            }
+        }
 
         BulkConfigResponse response = configurationService.bulkImport(bulkRequest, atomic, ip, maskedKey);
         return ResponseEntity.ok(response);
@@ -217,10 +230,15 @@ public class ConfigurationController {
     @GetMapping("/search")
     public ResponseEntity<List<com.vault.configmanager.dto.response.ConfigSearchResult>> searchConfigs(
             @RequestParam(value = "query", required = false) String query,
-            @RequestParam(value = "q", required = false) String q) {
+            @RequestParam(value = "q", required = false) String q,
+            HttpServletRequest servletRequest) {
         String searchTerm = (query != null && !query.isBlank()) ? query : q;
         List<com.vault.configmanager.dto.response.ConfigSearchResult> results =
-                configurationService.searchConfigurations(searchTerm);
+                configurationService.searchConfigurations(searchTerm, authenticatedKey(servletRequest));
         return ResponseEntity.ok(results);
+    }
+
+    private static ApiKey authenticatedKey(HttpServletRequest servletRequest) {
+        return (ApiKey) servletRequest.getAttribute(ApiKeyAuthFilter.AUTHENTICATED_KEY_ATTR);
     }
 }

@@ -7,6 +7,7 @@ import com.vault.configmanager.dto.response.VersionSummary;
 import com.vault.configmanager.exception.ConfigNotFoundException;
 import com.vault.configmanager.exception.GlobalExceptionHandler;
 import com.vault.configmanager.security.ApiKeyAuthFilter;
+import com.vault.configmanager.security.TestApiKeys;
 import com.vault.configmanager.service.AuditService;
 import com.vault.configmanager.service.ConfigurationService;
 import com.vault.configmanager.service.ExportService;
@@ -19,6 +20,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -41,8 +43,10 @@ class ConfigurationControllerTest {
         exportService = mock(ExportService.class);
         auditService = mock(AuditService.class);
 
-        ConfigurationController controller = new ConfigurationController(configurationService, exportService);
-        ApiKeyAuthFilter filter = new ApiKeyAuthFilter("sk-dev-key-001,sk-dev-key-002", objectMapper);
+        TestApiKeys keys = TestApiKeys.withAdmin("sk-dev-key-001")
+                .register("sk-scoped-writer", List.of("user-svc"), List.of("prod"), Set.of("READ", "WRITE"));
+        ConfigurationController controller = new ConfigurationController(configurationService, exportService, keys.service());
+        ApiKeyAuthFilter filter = new ApiKeyAuthFilter(objectMapper, keys.service());
         GlobalExceptionHandler exceptionHandler = new GlobalExceptionHandler(auditService);
 
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
@@ -223,6 +227,61 @@ class ConfigurationControllerTest {
                 .andExpect(header().string("Content-Type", "application/json"))
                 .andExpect(header().string("Content-Disposition", "attachment; filename=\"app-prod-v1.json\""))
                 .andExpect(content().string("{\"key\":\"value\"}"));
+    }
+
+    @Test
+    void createConfig_outsideKeyScope_returns403WithoutWriting() throws Exception {
+        ConfigRequest request = new ConfigRequest("billing-svc", "prod", Map.of("host", "localhost"), Map.of());
+
+        mockMvc.perform(post("/api/v1/vault/config")
+                        .header("X-API-Key", "sk-scoped-writer")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden());
+
+        verify(configurationService, never()).createConfiguration(any(), any(), any());
+    }
+
+    @Test
+    void createConfig_insideKeyScope_returns201() throws Exception {
+        ConfigRequest request = new ConfigRequest("user-svc", "prod", Map.of("host", "localhost"), Map.of());
+        when(configurationService.createConfiguration(any(ConfigRequest.class), any(), any()))
+                .thenReturn(new ConfigResponse("doc-1", "user-svc", "prod", 1, "hash", Map.of(), Map.of(), LocalDateTime.now()));
+
+        mockMvc.perform(post("/api/v1/vault/config")
+                        .header("X-API-Key", "sk-scoped-writer")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    void bulkImport_withAnyEntryOutsideKeyScope_rejectsWholeBatch() throws Exception {
+        com.vault.configmanager.dto.request.BulkConfigRequest bulkReq =
+                new com.vault.configmanager.dto.request.BulkConfigRequest(List.of(
+                        new ConfigRequest("user-svc", "prod", Map.of("k", "v"), Map.of()),
+                        new ConfigRequest("billing-svc", "prod", Map.of("k", "v"), Map.of())
+                ));
+
+        mockMvc.perform(post("/api/v1/vault/config/bulk")
+                        .header("X-API-Key", "sk-scoped-writer")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(bulkReq)))
+                .andExpect(status().isForbidden());
+
+        verify(configurationService, never()).bulkImport(any(), anyBoolean(), any(), any());
+    }
+
+    @Test
+    void globalSearch_passesAuthenticatedKeyScopeToService() throws Exception {
+        when(configurationService.searchConfigurations(eq("payment"), any())).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/v1/vault/config/search?q=payment")
+                        .header("X-API-Key", "sk-scoped-writer"))
+                .andExpect(status().isOk());
+
+        verify(configurationService).searchConfigurations(eq("payment"),
+                argThat(key -> key != null && key.getAllowedApps().equals(List.of("user-svc"))));
     }
 
     @Test

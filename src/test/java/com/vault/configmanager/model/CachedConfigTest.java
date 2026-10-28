@@ -1,6 +1,5 @@
 package com.vault.configmanager.model;
 
-import org.bson.Document;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.Indexed;
@@ -30,21 +29,30 @@ class CachedConfigTest {
 
     @Test
     void gettersSettersAndEquals() {
-        Document payload = new Document("key", "val");
         LocalDateTime now = LocalDateTime.now();
 
-        CachedConfig config1 = new CachedConfig("app:prod", payload, now);
+        CachedConfig config1 = new CachedConfig("app:prod", "cipher", "iv", now);
         assertEquals("app:prod", config1.getCacheKey());
-        assertEquals(payload, config1.getDecryptedPayload());
+        assertEquals("cipher", config1.getEncryptedCiphertext());
+        assertTrue(config1.isEncryptedAtRest());
         assertEquals(now, config1.getCachedAt());
 
         CachedConfig config2 = new CachedConfig();
         config2.setCacheKey("app:prod");
-        config2.setDecryptedPayload(payload);
+        config2.setEncryptedCiphertext("cipher");
+        config2.setIv("iv");
         config2.setCachedAt(now);
 
         assertEquals(config1, config2);
         assertEquals(config1.hashCode(), config2.hashCode());
         assertTrue(config1.toString().contains("app:prod"));
+    }
+
+    @Test
+    void model_hasNoPlaintextPayloadField() {
+        for (Field field : CachedConfig.class.getDeclaredFields()) {
+            assertNotEquals(org.bson.Document.class, field.getType(),
+                    "CachedConfig must not carry a plaintext payload field: " + field.getName());
+        }
     }
 }

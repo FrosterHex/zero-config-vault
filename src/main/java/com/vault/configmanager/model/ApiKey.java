@@ -23,7 +23,7 @@ public class ApiKey {
 
     private String name;
 
-    @Indexed(unique = true)
+    // Display-only label shared by many keys (e.g. "sk_live_"); identity is hashedSecret
     private String keyPrefix;
 
     @Indexed(unique = true)

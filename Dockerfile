@@ -30,10 +30,9 @@ COPY --from=builder --chown=vault:vault /workspace/target/secure-config-vault-*.
 
 USER vault
 
-# Default environment configuration
+# Default environment configuration (VAULT_MASTER_KEY must be supplied at runtime)
 ENV SERVER_PORT=8080 \
     SPRING_DATA_MONGODB_URI="mongodb://mongo:27017/secure_config_vault?replicaSet=rs0" \
-    VAULT_MASTER_KEY="0123456789abcdef0123456789abcdef" \
     JAVA_OPTS="-Xms128m -Xmx350m -Xss256k -XX:+UseG1GC -XX:+UseContainerSupport -Djava.security.egd=file:/dev/./urandom"
 
 EXPOSE 8080

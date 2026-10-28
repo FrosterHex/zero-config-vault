@@ -286,4 +286,46 @@ class ConfigurationServiceTest {
         );
         verify(status).setRollbackOnly();
     }
+
+    @Test
+    void createConfiguration_searchableTextNeverContainsSecrets() {
+        when(configurationRepository.findTopByApplicationNameAndEnvironmentOrderByVersionDesc("user-service", "prod"))
+                .thenReturn(Optional.empty());
+        when(configurationRepository.save(any(VaultDocument.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        configurationService.createConfiguration(new ConfigRequest(
+                "user-service", "prod",
+                Map.of("db_host", "postgres.prod",
+                        "secure_settings", Map.of("password", "hunter2-plaintext")),
+                Map.of()), "127.0.0.1", "sk-****");
+
+        org.mockito.ArgumentCaptor<VaultDocument> captor = org.mockito.ArgumentCaptor.forClass(VaultDocument.class);
+        verify(configurationRepository).save(captor.capture());
+        String searchable = captor.getValue().getSearchableText();
+        assertTrue(searchable.contains("postgres.prod"));
+        assertFalse(searchable.contains("hunter2-plaintext"));
+        assertFalse(searchable.contains("secure_settings"));
+    }
+
+    @Test
+    void searchConfigurations_isScopedToKeyAndNeverReturnsSecrets() {
+        org.bson.Document payload = jsonTraverser.encryptDocument(new org.bson.Document("region", "payment-eu")
+                .append("secure_settings", new org.bson.Document("stripe_key", "payment-secret-plaintext")));
+        VaultDocument allowed = new VaultDocument("payment-svc", "prod", 1, "h1", payload, Map.of(), java.time.LocalDateTime.now(), null);
+        allowed.setSearchableText(configurationService.buildSearchableContent("payment-svc", "prod", payload, Map.of()));
+        VaultDocument foreign = new VaultDocument("payment-ledger", "prod", 1, "h2", payload, Map.of(), java.time.LocalDateTime.now(), null);
+        foreign.setSearchableText(configurationService.buildSearchableContent("payment-ledger", "prod", payload, Map.of()));
+        when(configurationRepository.findAll()).thenReturn(List.of(allowed, foreign));
+
+        com.vault.configmanager.model.ApiKey scoped = new com.vault.configmanager.model.ApiKey(
+                "Reader", "sk-", "hash", List.of("payment-svc"), List.of("prod"), java.util.Set.of("READ"), null);
+
+        List<com.vault.configmanager.dto.response.ConfigSearchResult> results =
+                configurationService.searchConfigurations("payment", scoped);
+
+        assertEquals(1, results.size());
+        assertEquals("payment-svc", results.get(0).getApplicationName());
+        assertFalse(results.get(0).getMatchingSnippets().toString().contains("payment-secret-plaintext"));
+        assertTrue(configurationService.searchConfigurations("payment", null).isEmpty());
+    }
 }

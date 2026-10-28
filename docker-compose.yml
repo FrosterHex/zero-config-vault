@@ -64,8 +64,9 @@ services:
       - "8080:8080"
     environment:
       - SPRING_DATA_MONGODB_URI=mongodb://mongo:27017/secure_config_vault?replicaSet=rs0
+      # Local development only: the dev profile seeds well-known API keys and accepts this master key
+      - SPRING_PROFILES_ACTIVE=dev
       - VAULT_MASTER_KEY=0123456789abcdef0123456789abcdef
-      - VAULT_API_KEYS=sk-dev-key-001,sk-dev-key-002,sk-admin-master-key
       - SERVER_PORT=8080
     depends_on:
       mongo:

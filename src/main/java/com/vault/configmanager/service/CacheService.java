@@ -70,7 +70,7 @@ public class CacheService {
     }
 
     private Optional<Document> resolvePayload(CachedConfig config) {
-        // If encrypted at rest, decrypt with in-memory ephemeral key
+        // Entries without ciphertext (e.g. legacy plaintext entries) are treated as a miss
         if (config.isEncryptedAtRest()) {
             try {
                 byte[] iv = Base64.getDecoder().decode(config.getIv());
@@ -85,16 +85,10 @@ public class CacheService {
                 return Optional.of(Document.parse(json));
             } catch (Exception e) {
                 log.debug("Ephemeral cache decryption failed (likely post-restart forward-secrecy eviction): {}", e.getMessage());
-                // Fall back to legacy plaintext if present, else treat as cache miss
-                if (config.getDecryptedPayload() != null) {
-                    return Optional.of(config.getDecryptedPayload());
-                }
                 return Optional.empty();
             }
         }
-
-        // Fallback for legacy cached entries
-        return Optional.ofNullable(config.getDecryptedPayload());
+        return Optional.empty();
     }
 
     /**
@@ -121,12 +115,11 @@ public class CacheService {
             String encryptedCiphertext = Base64.getEncoder().encodeToString(cipherBytes);
             String ivBase64 = Base64.getEncoder().encodeToString(iv);
 
-            CachedConfig config = new CachedConfig(key, decryptedPayload, encryptedCiphertext, ivBase64, LocalDateTime.now());
+            CachedConfig config = new CachedConfig(key, encryptedCiphertext, ivBase64, LocalDateTime.now());
             cachedConfigRepository.save(config);
         } catch (Exception e) {
-            log.warn("Failed to encrypt cache payload for {}: {}. Falling back to standard cache save.", key, e.getMessage());
-            CachedConfig config = new CachedConfig(key, decryptedPayload, LocalDateTime.now());
-            cachedConfigRepository.save(config);
+            // Never persist plaintext: skipping the cache only costs a database read
+            log.warn("Failed to encrypt cache payload for {}: {}. Skipping cache write.", key, e.getMessage());
         }
     }
 

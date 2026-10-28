@@ -4,6 +4,8 @@ import com.vault.configmanager.dto.response.ApiErrorResponse;
 import com.vault.configmanager.security.ApiKeyAuthFilter;
 import com.vault.configmanager.service.AuditService;
 import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -18,6 +20,8 @@ import java.time.LocalDateTime;
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     private final AuditService auditService;
 
@@ -60,6 +64,13 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(error);
     }
 
+    @ExceptionHandler(ScopeViolationException.class)
+    public ResponseEntity<ApiErrorResponse> handleScopeViolation(ScopeViolationException ex, HttpServletRequest request) {
+        recordFailureAudit(request, "SCOPE_VIOLATION", ex.getMessage());
+        ApiErrorResponse error = new ApiErrorResponse(HttpStatus.FORBIDDEN.value(), "Forbidden", ex.getMessage(), LocalDateTime.now());
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
+    }
+
     @ExceptionHandler(SecurityException.class)
     public ResponseEntity<ApiErrorResponse> handleSecurityException(SecurityException ex, HttpServletRequest request) {
         recordFailureAudit(request, "SECURITY_ERROR", ex.getMessage());
@@ -69,9 +80,11 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorResponse> handleGenericException(Exception ex, HttpServletRequest request) {
+        // Details stay server-side: driver/crypto messages can reveal collection, index or key internals
+        log.error("Unhandled exception on {}", request != null ? request.getRequestURI() : "unknown", ex);
         recordFailureAudit(request, "INTERNAL_ERROR", ex.getMessage());
         ApiErrorResponse error = new ApiErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR.value(), "Internal Server Error",
-                "An unexpected error occurred: " + ex.getMessage(), LocalDateTime.now());
+                "An unexpected error occurred.", LocalDateTime.now());
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
     }
 

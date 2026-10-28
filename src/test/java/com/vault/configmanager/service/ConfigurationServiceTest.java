@@ -328,4 +328,84 @@ class ConfigurationServiceTest {
         assertFalse(results.get(0).getMatchingSnippets().toString().contains("payment-secret-plaintext"));
         assertTrue(configurationService.searchConfigurations("payment", null).isEmpty());
     }
+
+    private VaultDocument storedV1WithPassword(String password) {
+        Document encrypted = jsonTraverser.encryptDocument(new Document("database",
+                new Document("host", "old").append("secure_settings", new Document("password", password))));
+        VaultDocument v1 = new VaultDocument("app", "prod", 1, hashingService.computePayloadHash(encrypted),
+                encrypted, Map.of(), LocalDateTime.now(), null);
+        when(configurationRepository.findTopByApplicationNameAndEnvironmentOrderByVersionDesc("app", "prod"))
+                .thenReturn(Optional.of(v1));
+        when(configurationRepository.save(any(VaultDocument.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        return v1;
+    }
+
+    private Document savedPayloadDecrypted() {
+        org.mockito.ArgumentCaptor<VaultDocument> captor = org.mockito.ArgumentCaptor.forClass(VaultDocument.class);
+        verify(configurationRepository).save(captor.capture());
+        assertEquals(2, captor.getValue().getVersion());
+        return jsonTraverser.decryptDocument(captor.getValue().getPayload());
+    }
+
+    @Test
+    void create_placeholderKeepsStoredSecret() {
+        storedV1WithPassword("real");
+        ConfigRequest request = new ConfigRequest("app", "prod",
+                Map.of("database", Map.of("host", "new", "secure_settings", Map.of("password", "********"))), Map.of());
+
+        configurationService.createConfiguration(request, "127.0.0.1", "k");
+
+        Document db = savedPayloadDecrypted().get("database", Document.class);
+        assertEquals("real", db.get("secure_settings", Document.class).getString("password"));
+        assertEquals("new", db.getString("host"));
+    }
+
+    @Test
+    void create_changedSecretIsStored() {
+        storedV1WithPassword("real");
+        ConfigRequest request = new ConfigRequest("app", "prod",
+                Map.of("database", Map.of("host", "new", "secure_settings", Map.of("password", "rotated"))), Map.of());
+
+        configurationService.createConfiguration(request, "127.0.0.1", "k");
+
+        Document db = savedPayloadDecrypted().get("database", Document.class);
+        assertEquals("rotated", db.get("secure_settings", Document.class).getString("password"));
+    }
+
+    @Test
+    void create_placeholderAtUnknownPath_rejected() {
+        storedV1WithPassword("real");
+        ConfigRequest request = new ConfigRequest("app", "prod",
+                Map.of("database", Map.of("secure_settings", Map.of("newKey", "********"))), Map.of());
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> configurationService.createConfiguration(request, "127.0.0.1", "k"));
+
+        assertTrue(ex.getMessage().contains("database.secure_settings.newKey"));
+        verify(configurationRepository, never()).save(any(VaultDocument.class));
+    }
+
+    @Test
+    void create_placeholderOnFirstVersion_rejected() {
+        when(configurationRepository.findTopByApplicationNameAndEnvironmentOrderByVersionDesc("app", "prod"))
+                .thenReturn(Optional.empty());
+        ConfigRequest request = new ConfigRequest("app", "prod",
+                Map.of("secure_settings", Map.of("password", "********")), Map.of());
+
+        assertThrows(IllegalArgumentException.class,
+                () -> configurationService.createConfiguration(request, "127.0.0.1", "k"));
+        verify(configurationRepository, never()).save(any(VaultDocument.class));
+    }
+
+    @Test
+    void patch_placeholderKeepsStoredSecret() {
+        storedV1WithPassword("real");
+
+        configurationService.updateConfigurationPartial("app", "prod",
+                Map.of("database", Map.of("secure_settings", Map.of("password", "********"))), "127.0.0.1", "k");
+
+        Document db = savedPayloadDecrypted().get("database", Document.class);
+        assertEquals("real", db.get("secure_settings", Document.class).getString("password"));
+    }
 }

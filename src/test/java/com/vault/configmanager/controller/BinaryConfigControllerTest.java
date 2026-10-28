@@ -17,6 +17,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -38,7 +39,9 @@ class BinaryConfigControllerTest {
         objectMapper.findAndRegisterModules();
 
         BinaryConfigController controller = new BinaryConfigController(binaryConfigService);
-        ApiKeyAuthFilter filter = new ApiKeyAuthFilter(objectMapper, TestApiKeys.withAdmin("sk-dev-key-001").service());
+        TestApiKeys keys = TestApiKeys.withAdmin("sk-dev-key-001")
+                .register("sk-guest-read", List.of("*"), List.of("*"), Set.of("READ", "EXPORT"));
+        ApiKeyAuthFilter filter = new ApiKeyAuthFilter(objectMapper, keys.service());
         GlobalExceptionHandler exceptionHandler = new GlobalExceptionHandler(auditService);
 
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
@@ -95,6 +98,15 @@ class BinaryConfigControllerTest {
                 .andExpect(content().bytes(content));
 
         verify(binaryConfigService).downloadBinaryConfig(eq("payment-svc"), eq("prod"), eq("cert.pem"), isNull(), any(), any());
+    }
+
+    @Test
+    void download_withoutReveal_returns403() throws Exception {
+        mockMvc.perform(get("/api/v1/vault/binaries/payment-svc/prod/cert.pem")
+                        .header("X-API-Key", "sk-guest-read"))
+                .andExpect(status().isForbidden());
+
+        verify(binaryConfigService, never()).downloadBinaryConfig(any(), any(), any(), any(), any(), any());
     }
 
     @Test

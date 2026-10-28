@@ -231,7 +231,8 @@ public class ConfigurationController {
         String ip = servletRequest.getRemoteAddr();
         String maskedKey = (String) servletRequest.getAttribute(ApiKeyAuthFilter.MASKED_KEY_ATTR);
 
-        ExportResult result = exportService.exportConfig(app, env, version, format, ip, maskedKey);
+        ExportResult result = exportService.exportConfig(app, env, version, format,
+                SecretVisibility.canReveal(servletRequest), ip, maskedKey);
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_TYPE, result.getContentType())
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + result.getFileName() + "\"")

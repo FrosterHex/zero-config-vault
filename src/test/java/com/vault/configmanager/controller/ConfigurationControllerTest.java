@@ -224,7 +224,7 @@ class ConfigurationControllerTest {
     void exportConfig_viaConfigController_returns200() throws Exception {
         com.vault.configmanager.dto.response.ExportResult exportResult =
                 new com.vault.configmanager.dto.response.ExportResult("{\"key\":\"value\"}", "application/json", "app-prod-v1.json", "json");
-        when(exportService.exportConfig(eq("app"), eq("prod"), isNull(), eq("json"), any(), any()))
+        when(exportService.exportConfig(eq("app"), eq("prod"), isNull(), eq("json"), anyBoolean(), any(), any()))
                 .thenReturn(exportResult);
 
         mockMvc.perform(get("/api/v1/vault/config/app/prod/export?format=json")

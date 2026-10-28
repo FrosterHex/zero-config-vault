@@ -3,6 +3,7 @@ package com.vault.configmanager.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vault.configmanager.dto.response.ConfigResponse;
 import com.vault.configmanager.dto.response.ExportResult;
+import com.vault.configmanager.util.SecretMaskingUtil;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
@@ -39,12 +40,13 @@ public class ExportService {
      * @param env          the environment
      * @param version      optional specific revision (if null, latest revision is used)
      * @param format       target format: "json", "yaml" / "yml", or "env" / "dotenv"
+     * @param reveal       when false, secret values are replaced with the masked placeholder
      * @param requestingIp client IP address for audit logging
      * @param apiKey       masked API key for audit logging
      * @return ExportResult containing content, content-type, filename, and format
      */
     public ExportResult exportConfig(String app, String env, Integer version, String format,
-                                     String requestingIp, String apiKey) {
+                                     boolean reveal, String requestingIp, String apiKey) {
         ConfigResponse config;
         if (version != null) {
             config = configurationService.getConfigurationByVersion(app, env, version, requestingIp, apiKey);
@@ -53,6 +55,9 @@ public class ExportService {
         }
 
         Map<String, Object> payload = config.getPayload() != null ? config.getPayload() : Collections.emptyMap();
+        if (!reveal) {
+            payload = SecretMaskingUtil.maskMap(payload);
+        }
         String normalizedFormat = format != null ? format.trim().toLowerCase(Locale.ROOT) : "json";
 
         String content;

@@ -4,6 +4,7 @@ import com.vault.configmanager.dto.response.ExportResult;
 import com.vault.configmanager.service.ExportService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vault.configmanager.security.ApiKeyAuthFilter;
+import com.vault.configmanager.service.AuditService;
 import com.vault.configmanager.security.TestApiKeys;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -29,7 +30,7 @@ class ExportControllerTest {
         ExportController controller = new ExportController(exportService);
         TestApiKeys keys = TestApiKeys.withAdmin("sk-dev-key-001")
                 .register("sk-guest-read", List.of("*"), List.of("*"), Set.of("READ", "EXPORT"));
-        ApiKeyAuthFilter filter = new ApiKeyAuthFilter(new ObjectMapper(), keys.service());
+        ApiKeyAuthFilter filter = new ApiKeyAuthFilter(new ObjectMapper(), keys.service(), mock(AuditService.class));
         mockMvc = MockMvcBuilders.standaloneSetup(controller).addFilters(filter).build();
     }
 

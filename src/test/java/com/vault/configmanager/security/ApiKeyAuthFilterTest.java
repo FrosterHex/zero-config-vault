@@ -3,6 +3,7 @@ package com.vault.configmanager.security;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vault.configmanager.model.ApiKey;
 import com.vault.configmanager.service.ApiKeyService;
+import com.vault.configmanager.service.AuditService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import org.junit.jupiter.api.BeforeEach;
@@ -22,6 +23,7 @@ class ApiKeyAuthFilterTest {
     private ApiKeyAuthFilter filter;
     private ObjectMapper objectMapper;
     private TestApiKeys keys;
+    private AuditService auditService;
 
     @BeforeEach
     void setUp() {
@@ -30,7 +32,8 @@ class ApiKeyAuthFilterTest {
         keys = TestApiKeys.withAdmin("sk-admin-token-001")
                 .register("sk-read-token", List.of("auth-svc"), List.of("dev"), Set.of("READ"))
                 .register("sk-write-token", List.of("auth-svc"), List.of("dev"), Set.of("WRITE"));
-        filter = new ApiKeyAuthFilter(objectMapper, keys.service());
+        auditService = mock(AuditService.class);
+        filter = new ApiKeyAuthFilter(objectMapper, keys.service(), auditService);
     }
 
     private MockHttpServletResponse run(MockHttpServletRequest request, FilterChain chain) throws ServletException, IOException {
@@ -195,5 +198,37 @@ class ApiKeyAuthFilterTest {
             assertEquals(400, run(request, filterChain).getStatus(), uri);
             verify(filterChain, never()).doFilter(any(), any());
         }
+    }
+
+    @Test
+    void scopeDenied_isAudited() throws ServletException, IOException {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/vault/config/billing-svc/dev");
+        request.addHeader("X-API-Key", "sk-read-token");
+
+        assertEquals(403, run(request, mock(FilterChain.class)).getStatus());
+
+        verify(auditService).log(eq("SCOPE_DENIED"), eq("billing-svc"), eq("dev"), any(), any(), eq(false),
+                eq("GET /api/v1/vault/config/billing-svc/dev"));
+    }
+
+    @Test
+    void invalidKey_isAudited() throws ServletException, IOException {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/vault/config/app/dev");
+        request.addHeader("X-API-Key", "invalid-key");
+
+        assertEquals(401, run(request, mock(FilterChain.class)).getStatus());
+
+        verify(auditService).log(eq("AUTH_DENIED"), eq("app"), eq("dev"), any(), eq("inv****-key"), eq(false),
+                eq("GET /api/v1/vault/config/app/dev"));
+    }
+
+    @Test
+    void missingKey_isAuditedWithNoneKey() throws ServletException, IOException {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/vault/audit");
+
+        assertEquals(401, run(request, mock(FilterChain.class)).getStatus());
+
+        verify(auditService).log(eq("AUTH_DENIED"), isNull(), isNull(), any(), eq("none"), eq(false),
+                eq("GET /api/v1/vault/audit"));
     }
 }

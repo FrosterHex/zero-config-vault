@@ -52,7 +52,7 @@ class ConfigurationControllerTest {
                 .register("sk-guest-write", List.of("*"), List.of("*"), Set.of("READ", "WRITE"))
                 .register("sk-guest-sandbox", List.of("playground"), List.of("*"), Set.of("READ", "WRITE", "ROLLBACK"));
         ConfigurationController controller = new ConfigurationController(configurationService, exportService, keys.service());
-        ApiKeyAuthFilter filter = new ApiKeyAuthFilter(objectMapper, keys.service());
+        ApiKeyAuthFilter filter = new ApiKeyAuthFilter(objectMapper, keys.service(), mock(AuditService.class));
         GlobalExceptionHandler exceptionHandler = new GlobalExceptionHandler(auditService);
 
         mockMvc = MockMvcBuilders.standaloneSetup(controller)

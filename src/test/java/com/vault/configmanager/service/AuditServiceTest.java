@@ -107,6 +107,14 @@ class AuditServiceTest {
     @Test
     void truncateIp_unparseableIpv6_isUnknown() {
         assertEquals("unknown", AuditService.truncateIp("not:an:ip:at:all:zz"));
+        assertEquals("unknown", AuditService.truncateIp("host.example.com:80"));
+        assertEquals("unknown", AuditService.truncateIp("evil.com:80"));
+        assertEquals("unknown", AuditService.truncateIp("cafe:80"));
+    }
+
+    @Test
+    void truncateIp_ipv6WithZone_ignoresZone() {
+        assertEquals("fe80:0:0:x", AuditService.truncateIp("fe80::1%eth0"));
     }
 
     private Query capturedQuery(MongoTemplate mongoTemplate) {

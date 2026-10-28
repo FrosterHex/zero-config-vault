@@ -94,31 +94,70 @@ class AuditServiceTest {
     }
 
     @Test
-    void recent_filtersByScopeAndClampsLimit() {
+    void truncateIp_compressedIpv6_isExpandedThenTruncated() {
+        assertEquals("2001:db8:0:x", AuditService.truncateIp("2001:db8::1"));
+        assertEquals("0:0:0:x", AuditService.truncateIp("::1"));
+    }
+
+    @Test
+    void truncateIp_ipv4MappedIpv6_hidesLastOctet() {
+        assertEquals("203.0.113.x", AuditService.truncateIp("::ffff:203.0.113.7"));
+    }
+
+    @Test
+    void truncateIp_unparseableIpv6_isUnknown() {
+        assertEquals("unknown", AuditService.truncateIp("not:an:ip:at:all:zz"));
+    }
+
+    private Query capturedQuery(MongoTemplate mongoTemplate) {
+        ArgumentCaptor<Query> captor = ArgumentCaptor.forClass(Query.class);
+        verify(mongoTemplate).find(captor.capture(), eq(AuditLog.class));
+        return captor.getValue();
+    }
+
+    @Test
+    void recent_scopedKey_putsScopeInQueryAndClampsLimit() {
         MongoTemplate mongoTemplate = mock(MongoTemplate.class);
         AuditService service = new AuditService(auditLogRepository, mongoTemplate);
-        when(mongoTemplate.find(any(Query.class), eq(AuditLog.class))).thenReturn(List.of(
-                entry("payment-gateway", "dev"),
-                entry("billing-svc", "dev"),
-                entry("keys", "some-key"),
-                entry("/api/v1/vault/config/x", "all"),
-                entry("payment-gateway", "prod")));
+        when(mongoTemplate.find(any(Query.class), eq(AuditLog.class))).thenReturn(List.of(entry("payment-gateway", "dev")));
         ApiKey scoped = new ApiKey("scoped", "sk-", "hash", List.of("payment-gateway"), List.of("dev"), Set.of("READ"), null);
 
         List<AuditLog> result = service.recent(500, null, null, scoped, false);
 
-        ArgumentCaptor<Query> captor = ArgumentCaptor.forClass(Query.class);
-        verify(mongoTemplate).find(captor.capture(), eq(AuditLog.class));
-        assertEquals(200, captor.getValue().getLimit());
-        assertTrue(captor.getValue().getSortObject().containsKey("$natural"));
-        assertEquals(1, result.size());
-        assertEquals("payment-gateway", result.get(0).getApplicationName());
-        assertEquals("dev", result.get(0).getEnvironment());
+        Query query = capturedQuery(mongoTemplate);
+        assertEquals(200, query.getLimit());
+        assertTrue(query.getSortObject().containsKey("$natural"));
+        assertEquals(List.of("payment-gateway"), ((org.bson.Document) query.getQueryObject().get("applicationName")).get("$in"));
+        assertEquals(List.of("dev"), ((org.bson.Document) query.getQueryObject().get("environment")).get("$in"));
         assertEquals("203.0.113.x", result.get(0).getRequestingIp());
     }
 
     @Test
-    void recent_wildcardKey_seesPseudoAppsAndFullIpWhenRevealed() {
+    void recent_scopedKey_withRequestFilterInsideScope_usesEquality() {
+        MongoTemplate mongoTemplate = mock(MongoTemplate.class);
+        AuditService service = new AuditService(auditLogRepository, mongoTemplate);
+        when(mongoTemplate.find(any(Query.class), eq(AuditLog.class))).thenReturn(List.of());
+        ApiKey scoped = new ApiKey("scoped", "sk-", "hash", List.of("a", "b"), List.of("*"), Set.of("READ"), null);
+
+        service.recent(10, "a", "prod", scoped, true);
+
+        Query query = capturedQuery(mongoTemplate);
+        assertEquals("a", query.getQueryObject().get("applicationName"));
+        assertEquals("prod", query.getQueryObject().get("environment"));
+    }
+
+    @Test
+    void recent_requestFilterOutsideScope_returnsNothingWithoutQuerying() {
+        MongoTemplate mongoTemplate = mock(MongoTemplate.class);
+        AuditService service = new AuditService(auditLogRepository, mongoTemplate);
+        ApiKey scoped = new ApiKey("scoped", "sk-", "hash", List.of("a"), List.of("*"), Set.of("READ"), null);
+
+        assertTrue(service.recent(10, "keys", null, scoped, true).isEmpty());
+        verifyNoInteractions(mongoTemplate);
+    }
+
+    @Test
+    void recent_wildcardKey_hasNoScopeCriteriaAndFullIpWhenRevealed() {
         MongoTemplate mongoTemplate = mock(MongoTemplate.class);
         AuditService service = new AuditService(auditLogRepository, mongoTemplate);
         when(mongoTemplate.find(any(Query.class), eq(AuditLog.class)))
@@ -127,9 +166,9 @@ class AuditServiceTest {
 
         List<AuditLog> result = service.recent(0, null, null, admin, true);
 
-        ArgumentCaptor<Query> captor = ArgumentCaptor.forClass(Query.class);
-        verify(mongoTemplate).find(captor.capture(), eq(AuditLog.class));
-        assertEquals(1, captor.getValue().getLimit());
+        Query query = capturedQuery(mongoTemplate);
+        assertEquals(1, query.getLimit());
+        assertTrue(query.getQueryObject().isEmpty());
         assertEquals(2, result.size());
         assertEquals("203.0.113.7", result.get(0).getRequestingIp());
     }

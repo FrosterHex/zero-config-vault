@@ -56,4 +56,17 @@ class DataBootstrapSeederTest {
 
         verifyNoInteractions(configurationService);
     }
+
+    @Test
+    void run_stillSeedsPlaygroundWhenAnEarlierStepFails() {
+        when(configurationRepository.count()).thenThrow(new RuntimeException("mongo down"));
+        when(configurationRepository.findTopByApplicationNameAndEnvironmentOrderByVersionDesc("playground", "development"))
+                .thenReturn(Optional.empty());
+
+        seeder.run(null);
+
+        ArgumentCaptor<ConfigRequest> captor = ArgumentCaptor.forClass(ConfigRequest.class);
+        verify(configurationService).createConfiguration(captor.capture(), anyString(), anyString());
+        assertEquals("playground", captor.getValue().getApplicationName());
+    }
 }

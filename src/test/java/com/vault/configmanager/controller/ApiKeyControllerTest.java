@@ -1,5 +1,7 @@
 package com.vault.configmanager.controller;
 
+import com.vault.configmanager.model.ApiKey;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vault.configmanager.dto.request.CreateApiKeyRequest;
 import com.vault.configmanager.dto.response.ApiKeyResponse;
@@ -17,7 +19,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 
-import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -37,7 +39,10 @@ class ApiKeyControllerTest {
         auditService = mock(AuditService.class);
 
         ApiKeyController controller = new ApiKeyController(apiKeyService, auditService);
-        ApiKeyAuthFilter filter = new ApiKeyAuthFilter("sk-admin-key-001", objectMapper, apiKeyService);
+        ApiKey adminKey = new ApiKey("Admin", "sk-admin-", "hash", List.of("*"), List.of("*"), Set.of("ADMIN"), null);
+        when(apiKeyService.validateAndAuthenticate("sk-admin-key-001")).thenReturn(java.util.Optional.of(adminKey));
+        when(apiKeyService.authorize(eq(adminKey), anyString(), any(), any())).thenReturn(true);
+        ApiKeyAuthFilter filter = new ApiKeyAuthFilter(objectMapper, apiKeyService);
         GlobalExceptionHandler exceptionHandler = new GlobalExceptionHandler(auditService);
 
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
@@ -71,7 +76,7 @@ class ApiKeyControllerTest {
                 null
         );
 
-        when(apiKeyService.createApiKey(any(CreateApiKeyRequest.class))).thenReturn(response);
+        when(apiKeyService.createApiKey(any(CreateApiKeyRequest.class), any())).thenReturn(response);
 
         mockMvc.perform(post("/api/v1/vault/keys")
                         .header("X-API-Key", "sk-admin-key-001")
@@ -82,7 +87,7 @@ class ApiKeyControllerTest {
                 .andExpect(jsonPath("$.name").value("Order Service Key"))
                 .andExpect(jsonPath("$.rawKey").value("sk_live_abcdef123456"));
 
-        verify(apiKeyService).createApiKey(any(CreateApiKeyRequest.class));
+        verify(apiKeyService).createApiKey(any(CreateApiKeyRequest.class), any());
     }
 
     @Test

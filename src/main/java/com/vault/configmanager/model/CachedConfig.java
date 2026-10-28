@@ -1,6 +1,5 @@
 package com.vault.configmanager.model;
 
-import org.bson.Document;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.Indexed;
 
@@ -21,7 +20,6 @@ public class CachedConfig {
     @Id
     private String cacheKey;
 
-    private Document decryptedPayload;
     private String encryptedCiphertext;
     private String iv;
 
@@ -31,22 +29,8 @@ public class CachedConfig {
     public CachedConfig() {
     }
 
-    public CachedConfig(String cacheKey, Document decryptedPayload, LocalDateTime cachedAt) {
-        this.cacheKey = cacheKey;
-        this.decryptedPayload = decryptedPayload;
-        this.cachedAt = cachedAt;
-    }
-
     public CachedConfig(String cacheKey, String encryptedCiphertext, String iv, LocalDateTime cachedAt) {
         this.cacheKey = cacheKey;
-        this.encryptedCiphertext = encryptedCiphertext;
-        this.iv = iv;
-        this.cachedAt = cachedAt;
-    }
-
-    public CachedConfig(String cacheKey, Document decryptedPayload, String encryptedCiphertext, String iv, LocalDateTime cachedAt) {
-        this.cacheKey = cacheKey;
-        this.decryptedPayload = decryptedPayload;
         this.encryptedCiphertext = encryptedCiphertext;
         this.iv = iv;
         this.cachedAt = cachedAt;
@@ -56,10 +40,6 @@ public class CachedConfig {
 
     public String getCacheKey() {
         return cacheKey;
-    }
-
-    public Document getDecryptedPayload() {
-        return decryptedPayload;
     }
 
     public String getEncryptedCiphertext() {
@@ -78,10 +58,6 @@ public class CachedConfig {
 
     public void setCacheKey(String cacheKey) {
         this.cacheKey = cacheKey;
-    }
-
-    public void setDecryptedPayload(Document decryptedPayload) {
-        this.decryptedPayload = decryptedPayload;
     }
 
     public void setEncryptedCiphertext(String encryptedCiphertext) {

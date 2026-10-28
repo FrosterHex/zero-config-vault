@@ -5,6 +5,7 @@ import com.vault.configmanager.dto.response.BinaryConfigResponse;
 import com.vault.configmanager.dto.response.BinaryPayload;
 import com.vault.configmanager.exception.GlobalExceptionHandler;
 import com.vault.configmanager.security.ApiKeyAuthFilter;
+import com.vault.configmanager.security.TestApiKeys;
 import com.vault.configmanager.service.AuditService;
 import com.vault.configmanager.service.BinaryConfigService;
 import org.junit.jupiter.api.BeforeEach;
@@ -37,7 +38,7 @@ class BinaryConfigControllerTest {
         objectMapper.findAndRegisterModules();
 
         BinaryConfigController controller = new BinaryConfigController(binaryConfigService);
-        ApiKeyAuthFilter filter = new ApiKeyAuthFilter("sk-dev-key-001", objectMapper);
+        ApiKeyAuthFilter filter = new ApiKeyAuthFilter(objectMapper, TestApiKeys.withAdmin("sk-dev-key-001").service());
         GlobalExceptionHandler exceptionHandler = new GlobalExceptionHandler(auditService);
 
         mockMvc = MockMvcBuilders.standaloneSetup(controller)

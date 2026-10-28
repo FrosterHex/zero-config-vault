@@ -30,15 +30,34 @@ class CacheServiceTest {
     }
 
     @Test
-    void get_whenPresentLegacyPlaintext_returnsDecryptedPayload() {
-        Document payload = new Document("db_url", "postgres://localhost");
-        CachedConfig config = new CachedConfig("app:prod", payload, LocalDateTime.now());
+    void get_whenEntryHasNoCiphertext_treatsAsCacheMiss() {
+        CachedConfig config = new CachedConfig();
+        config.setCacheKey("app:prod");
+        config.setCachedAt(LocalDateTime.now());
 
         when(cachedConfigRepository.findById("app:prod")).thenReturn(Optional.of(config));
 
-        Optional<Document> result = cacheService.get("app", "prod");
-        assertTrue(result.isPresent());
-        assertEquals("postgres://localhost", result.get().getString("db_url"));
+        assertTrue(cacheService.get("app", "prod").isEmpty());
+    }
+
+    @Test
+    void put_neverPersistsPlaintextPayload() throws IllegalAccessException {
+        cacheService.put("auth-svc", "prod", new Document("secure_settings",
+                new Document("jwt_secret", "super-secret-plaintext-value")));
+
+        ArgumentCaptor<CachedConfig> captor = ArgumentCaptor.forClass(CachedConfig.class);
+        verify(cachedConfigRepository).save(captor.capture());
+
+        CachedConfig saved = captor.getValue();
+        for (java.lang.reflect.Field field : CachedConfig.class.getDeclaredFields()) {
+            if (java.lang.reflect.Modifier.isStatic(field.getModifiers())) {
+                continue;
+            }
+            field.setAccessible(true);
+            Object value = field.get(saved);
+            assertFalse(value != null && value.toString().contains("super-secret-plaintext-value"),
+                    "Field '" + field.getName() + "' must not hold the plaintext secret");
+        }
     }
 
     @Test

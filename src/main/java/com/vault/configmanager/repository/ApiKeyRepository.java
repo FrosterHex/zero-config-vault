@@ -13,8 +13,6 @@ import java.util.Optional;
 @Repository
 public interface ApiKeyRepository extends MongoRepository<ApiKey, String> {
 
-    Optional<ApiKey> findByKeyPrefix(String keyPrefix);
-
     Optional<ApiKey> findByHashedSecret(String hashedSecret);
 
     List<ApiKey> findByActiveTrue();

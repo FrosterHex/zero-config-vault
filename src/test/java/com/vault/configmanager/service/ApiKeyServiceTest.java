@@ -14,7 +14,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class ApiKeyServiceTest {
@@ -45,7 +45,8 @@ class ApiKeyServiceTest {
             return key;
         });
 
-        ApiKeyResponse response = apiKeyService.createApiKey(request);
+        ApiKey creator = new ApiKey("Admin", "sk-admin-", "hash", List.of("*"), List.of("*"), Set.of("ADMIN"), null);
+        ApiKeyResponse response = apiKeyService.createApiKey(request, creator);
 
         assertNotNull(response);
         assertEquals("key-id-123", response.getId());
@@ -190,5 +191,78 @@ class ApiKeyServiceTest {
         assertTrue(revoked);
         assertFalse(key.isActive());
         verify(apiKeyRepository).save(key);
+    }
+
+    @Test
+    void createApiKey_withBroaderScopeThanCreator_isRejected() {
+        ApiKey scopedAdmin = new ApiKey("Scoped Admin", "sk-", "hash", List.of("payment-svc"), List.of("*"), Set.of("ADMIN"), null);
+        CreateApiKeyRequest wildcard = new CreateApiKeyRequest("Escalated", "sk_", List.of("*"), List.of("prod"), Set.of("WRITE"), null);
+        CreateApiKeyRequest otherApp = new CreateApiKeyRequest("Other", "sk_", List.of("billing-svc"), List.of("prod"), Set.of("WRITE"), null);
+
+        assertThrows(com.vault.configmanager.exception.ScopeViolationException.class,
+                () -> apiKeyService.createApiKey(wildcard, scopedAdmin));
+        assertThrows(com.vault.configmanager.exception.ScopeViolationException.class,
+                () -> apiKeyService.createApiKey(otherApp, scopedAdmin));
+        verify(apiKeyRepository, never()).save(any(ApiKey.class));
+    }
+
+    @Test
+    void createApiKey_withRoleCreatorLacks_isRejected() {
+        ApiKey writer = new ApiKey("Writer", "sk-", "hash", List.of("*"), List.of("*"), Set.of("WRITE"), null);
+        CreateApiKeyRequest adminRequest = new CreateApiKeyRequest("Admin", "sk_", List.of("a"), List.of("prod"), Set.of("ADMIN"), null);
+
+        assertThrows(com.vault.configmanager.exception.ScopeViolationException.class,
+                () -> apiKeyService.createApiKey(adminRequest, writer));
+    }
+
+    @Test
+    void requireScope_rejectsMissingOrOutOfScopeTargets() {
+        ApiKey writer = new ApiKey("Writer", "sk-", "hash", List.of("payment-svc"), List.of("prod"), Set.of("WRITE"), null);
+
+        assertDoesNotThrow(() -> apiKeyService.requireScope(writer, "WRITE", "payment-svc", "prod"));
+        assertThrows(com.vault.configmanager.exception.ScopeViolationException.class,
+                () -> apiKeyService.requireScope(writer, "WRITE", "billing-svc", "prod"));
+        assertThrows(com.vault.configmanager.exception.ScopeViolationException.class,
+                () -> apiKeyService.requireScope(writer, "WRITE", null, "prod"));
+        assertThrows(com.vault.configmanager.exception.ScopeViolationException.class,
+                () -> apiKeyService.requireScope(null, "WRITE", "payment-svc", "prod"));
+    }
+
+    @Test
+    void seedDefaultKeys_outsideDevMode_deactivatesWellKnownKeysAndSeedsNone() {
+        ApiKey published = new ApiKey("Default Dev Master Key", "sk-dev-", ApiKeyService.sha256Hex("sk-dev-key-001"),
+                List.of("*"), List.of("*"), Set.of("ADMIN"), null);
+        when(apiKeyRepository.findByHashedSecret(anyString())).thenReturn(java.util.Optional.empty());
+        when(apiKeyRepository.findByHashedSecret(ApiKeyService.sha256Hex("sk-dev-key-001")))
+                .thenReturn(java.util.Optional.of(published));
+
+        apiKeyService.seedDefaultKeys();
+
+        assertFalse(published.isActive());
+        verify(apiKeyRepository).save(published);
+        verify(apiKeyRepository, times(1)).save(any(ApiKey.class));
+    }
+
+    @Test
+    void seedDefaultKeys_outsideDevMode_seedsBootstrapAdminKeyFromConfig() {
+        org.springframework.test.util.ReflectionTestUtils.setField(apiKeyService, "bootstrapAdminKey", "sk-boot-7f3a9c2e5d1b8a4f");
+        when(apiKeyRepository.findByHashedSecret(anyString())).thenReturn(java.util.Optional.empty());
+
+        apiKeyService.seedDefaultKeys();
+
+        org.mockito.ArgumentCaptor<ApiKey> captor = org.mockito.ArgumentCaptor.forClass(ApiKey.class);
+        verify(apiKeyRepository).save(captor.capture());
+        assertEquals(ApiKeyService.sha256Hex("sk-boot-7f3a9c2e5d1b8a4f"), captor.getValue().getHashedSecret());
+        assertTrue(captor.getValue().getRoles().contains("ADMIN"));
+    }
+
+    @Test
+    void seedDefaultKeys_inDevMode_seedsWellKnownKeysIntoEmptyCollection() {
+        org.springframework.test.util.ReflectionTestUtils.setField(apiKeyService, "devMode", true);
+        when(apiKeyRepository.count()).thenReturn(0L);
+
+        apiKeyService.seedDefaultKeys();
+
+        verify(apiKeyRepository, times(3)).save(any(ApiKey.class));
     }
 }

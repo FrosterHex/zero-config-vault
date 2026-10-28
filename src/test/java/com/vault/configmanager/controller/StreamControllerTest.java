@@ -3,6 +3,7 @@ package com.vault.configmanager.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vault.configmanager.exception.GlobalExceptionHandler;
 import com.vault.configmanager.security.ApiKeyAuthFilter;
+import com.vault.configmanager.security.TestApiKeys;
 import com.vault.configmanager.service.AuditService;
 import com.vault.configmanager.service.ChangeStreamService;
 import org.junit.jupiter.api.BeforeEach;
@@ -34,7 +35,7 @@ class StreamControllerTest {
         objectMapper.findAndRegisterModules();
 
         StreamController controller = new StreamController(changeStreamService, auditService);
-        ApiKeyAuthFilter filter = new ApiKeyAuthFilter("sk-dev-key-001", objectMapper);
+        ApiKeyAuthFilter filter = new ApiKeyAuthFilter(objectMapper, TestApiKeys.withAdmin("sk-dev-key-001").service());
         GlobalExceptionHandler exceptionHandler = new GlobalExceptionHandler(auditService);
 
         mockMvc = MockMvcBuilders.standaloneSetup(controller)

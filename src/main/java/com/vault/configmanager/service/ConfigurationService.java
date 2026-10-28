@@ -13,6 +13,7 @@ import com.vault.configmanager.dto.response.VersionSummary;
 import com.vault.configmanager.exception.ConfigNotFoundException;
 import com.vault.configmanager.exception.DuplicateVersionException;
 import com.vault.configmanager.exception.IntegrityViolationException;
+import com.vault.configmanager.model.ApiKey;
 import com.vault.configmanager.model.VaultDocument;
 import com.vault.configmanager.repository.ConfigurationRepository;
 import com.vault.configmanager.util.ConfigDiffUtil;
@@ -521,10 +522,12 @@ public class ConfigurationService {
     }
 
     /**
-     * Executes MongoDB Full-Text and regex search across configuration payloads, apps, and tags.
+     * Executes regex search across configuration apps, environments, tags and non-secret payload fields,
+     * restricted to the apps and environments the given API key may read.
+     * Secrets under "secure_settings" are never indexed, matched, or returned.
      */
-    public List<ConfigSearchResult> searchConfigurations(String query) {
-        if (query == null || query.trim().isEmpty()) {
+    public List<ConfigSearchResult> searchConfigurations(String query, ApiKey scope) {
+        if (query == null || query.trim().isEmpty() || scope == null || !scope.hasPermission("READ")) {
             return Collections.emptyList();
         }
         long start = System.currentTimeMillis();
@@ -539,11 +542,18 @@ public class ConfigurationService {
                     Criteria.where("searchableText").regex(Pattern.quote(cleaned), "i")
             );
             mongoQuery.addCriteria(searchCriteria);
+            if (!scope.getAllowedApps().contains("*")) {
+                mongoQuery.addCriteria(Criteria.where("applicationName").in(scope.getAllowedApps()));
+            }
+            if (!scope.getAllowedEnvironments().contains("*")) {
+                mongoQuery.addCriteria(Criteria.where("environment").in(scope.getAllowedEnvironments()));
+            }
             mongoQuery.with(Sort.by(Sort.Direction.DESC, "version"));
             mongoQuery.limit(25);
             matches = mongoTemplate.find(mongoQuery, VaultDocument.class);
         } else {
             matches = configurationRepository.findAll().stream()
+                    .filter(d -> scope.isAppAllowed(d.getApplicationName()) && scope.isEnvAllowed(d.getEnvironment()))
                     .filter(d -> (d.getApplicationName() != null && d.getApplicationName().toLowerCase().contains(cleaned.toLowerCase())) ||
                             (d.getEnvironment() != null && d.getEnvironment().toLowerCase().contains(cleaned.toLowerCase())) ||
                             (d.getSearchableText() != null && d.getSearchableText().toLowerCase().contains(cleaned.toLowerCase())))
@@ -553,8 +563,7 @@ public class ConfigurationService {
 
         List<ConfigSearchResult> results = new ArrayList<>();
         for (VaultDocument doc : matches) {
-            Document decrypted = jsonTraverser.decryptDocument(doc.getPayload());
-            Map<String, Object> snippets = extractMatchingSnippets(decrypted, cleaned.toLowerCase());
+            Map<String, Object> snippets = extractMatchingSnippets(doc.getPayload(), cleaned.toLowerCase());
             float score = (float) (snippets.size() * 2.0 + (doc.getApplicationName().toLowerCase().contains(cleaned.toLowerCase()) ? 3.0 : 1.0));
 
             results.add(new ConfigSearchResult(
@@ -587,6 +596,9 @@ public class ConfigurationService {
 
     private void flattenDocumentToSearch(Document doc, String prefix, StringBuilder sb) {
         for (Map.Entry<String, Object> entry : doc.entrySet()) {
+            if (JsonTraverser.SECURE_SETTINGS_KEY.equals(entry.getKey())) {
+                continue;
+            }
             String key = prefix.isEmpty() ? entry.getKey() : prefix + "." + entry.getKey();
             Object val = entry.getValue();
             sb.append(key).append(" ");
@@ -606,6 +618,9 @@ public class ConfigurationService {
 
     private void flattenMatchingNodes(Document doc, String prefix, String term, Map<String, Object> snippets) {
         for (Map.Entry<String, Object> entry : doc.entrySet()) {
+            if (JsonTraverser.SECURE_SETTINGS_KEY.equals(entry.getKey())) {
+                continue;
+            }
             String key = prefix.isEmpty() ? entry.getKey() : prefix + "." + entry.getKey();
             Object val = entry.getValue();
             if (key.toLowerCase().contains(term) || (val != null && val.toString().toLowerCase().contains(term))) {

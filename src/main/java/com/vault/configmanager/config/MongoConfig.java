@@ -154,6 +154,21 @@ public class MongoConfig {
                 // Non-blocking text index creation
             }
 
+            // 5. Drop the legacy unique index on api_keys.keyPrefix: prefixes such as the default
+            //    "sk_live_" are shared by many keys, so it made every second key creation fail
+            try {
+                if (collections.contains("api_keys")) {
+                    for (Document idx : db.getCollection("api_keys").listIndexes()) {
+                        Document key = idx.get("key", Document.class);
+                        if (key != null && key.size() == 1 && key.containsKey("keyPrefix")) {
+                            db.getCollection("api_keys").dropIndex(idx.getString("name"));
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                // Non-blocking legacy index cleanup
+            }
+
         } catch (Exception e) {
             // Allows build/tests and offline startup without blocking
         }

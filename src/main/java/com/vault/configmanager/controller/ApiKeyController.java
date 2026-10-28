@@ -4,6 +4,7 @@ import com.vault.configmanager.dto.request.CreateApiKeyRequest;
 import com.vault.configmanager.dto.response.ApiKeyResponse;
 import com.vault.configmanager.security.ApiKeyAuthFilter;
 import com.vault.configmanager.service.ApiKeyService;
+import com.vault.configmanager.model.ApiKey;
 import com.vault.configmanager.service.AuditService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -40,7 +41,8 @@ public class ApiKeyController {
         String ip = servletRequest.getRemoteAddr();
         String maskedKey = (String) servletRequest.getAttribute(ApiKeyAuthFilter.MASKED_KEY_ATTR);
 
-        ApiKeyResponse response = apiKeyService.createApiKey(request);
+        ApiKey creator = (ApiKey) servletRequest.getAttribute(ApiKeyAuthFilter.AUTHENTICATED_KEY_ATTR);
+        ApiKeyResponse response = apiKeyService.createApiKey(request, creator);
         auditService.log("API_KEY_CREATED", "keys", request.getName(), ip, maskedKey, true,
                 "Created key prefix: " + response.getKeyPrefix());
 

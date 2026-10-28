@@ -1,0 +1,7 @@
+# Local development profile: activate with SPRING_PROFILES_ACTIVE=dev
+# or `mvn spring-boot:run -Dspring-boot.run.profiles=dev`.
+# Never enable this profile on a deployed instance.
+vault:
+  dev-mode: true
+  master:
+    key: ${VAULT_MASTER_KEY:0123456789abcdef0123456789abcdef}

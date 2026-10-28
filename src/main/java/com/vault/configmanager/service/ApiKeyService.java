@@ -2,12 +2,14 @@ package com.vault.configmanager.service;
 
 import com.vault.configmanager.dto.request.CreateApiKeyRequest;
 import com.vault.configmanager.dto.response.ApiKeyResponse;
+import com.vault.configmanager.exception.ScopeViolationException;
 import com.vault.configmanager.model.ApiKey;
 import com.vault.configmanager.model.ApiKeyRole;
 import com.vault.configmanager.repository.ApiKeyRepository;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
@@ -36,20 +38,60 @@ public class ApiKeyService {
     }
 
     /**
-     * Seeds initial bootstrap development and admin keys if the collection is empty.
+     * Well-known development keys that are published in the repository. They are only
+     * seeded in dev mode, and are deactivated on startup outside dev mode.
+     */
+    static final List<String> WELL_KNOWN_DEV_KEYS = List.of("sk-dev-key-001", "sk-dev-key-002", "sk-admin-key-001");
+
+    @Value("${vault.dev-mode:false}")
+    private boolean devMode;
+
+    @Value("${vault.bootstrap.admin-key:}")
+    private String bootstrapAdminKey;
+
+    /**
+     * Seeds bootstrap keys if the collection is empty. In dev mode the well-known development
+     * keys are seeded; otherwise only the admin key supplied via VAULT_BOOTSTRAP_ADMIN_KEY is.
+     * Outside dev mode, any well-known development keys already present are deactivated.
      */
     @PostConstruct
     public void seedDefaultKeys() {
         try {
-            if (apiKeyRepository.count() == 0) {
-                log.info("No API keys found in 'api_keys' collection. Seeding initial bootstrap keys...");
-                seedKey("sk-dev-key-001", "Default Dev Master Key", "sk-dev-", List.of("*"), List.of("*"), Set.of(ApiKeyRole.ADMIN.name()));
-                seedKey("sk-dev-key-002", "Default Dev Read-Only Key", "sk-read-", List.of("*"), List.of("dev", "staging"), Set.of(ApiKeyRole.READ.name()));
-                seedKey("sk-admin-key-001", "Default Admin Platform Key", "sk-admin-", List.of("*"), List.of("*"), Set.of(ApiKeyRole.ADMIN.name()));
-                log.info("Default bootstrap API keys successfully initialized in MongoDB.");
+            if (devMode) {
+                if (apiKeyRepository.count() == 0) {
+                    log.info("Dev mode: seeding well-known development API keys...");
+                    seedKey("sk-dev-key-001", "Default Dev Master Key", "sk-dev-", List.of("*"), List.of("*"), Set.of(ApiKeyRole.ADMIN.name()));
+                    seedKey("sk-dev-key-002", "Default Dev Read-Only Key", "sk-read-", List.of("*"), List.of("development", "staging"), Set.of(ApiKeyRole.READ.name()));
+                    seedKey("sk-admin-key-001", "Default Admin Platform Key", "sk-admin-", List.of("*"), List.of("*"), Set.of(ApiKeyRole.ADMIN.name()));
+                }
+                return;
+            }
+
+            deactivateWellKnownDevKeys();
+
+            if (bootstrapAdminKey != null && !bootstrapAdminKey.isBlank()
+                    && apiKeyRepository.findByHashedSecret(sha256Hex(bootstrapAdminKey.trim())).isEmpty()) {
+                if (WELL_KNOWN_DEV_KEYS.contains(bootstrapAdminKey.trim())) {
+                    log.error("VAULT_BOOTSTRAP_ADMIN_KEY is a well-known development key and was ignored.");
+                } else {
+                    log.info("Seeding bootstrap admin API key from VAULT_BOOTSTRAP_ADMIN_KEY.");
+                    seedKey(bootstrapAdminKey.trim(), "Bootstrap Admin Key", "sk-boot-", List.of("*"), List.of("*"), Set.of(ApiKeyRole.ADMIN.name()));
+                }
             }
         } catch (Exception e) {
-            log.warn("Could not seed default API keys into MongoDB: {}. Continuing with fallback configuration.", e.getMessage());
+            log.warn("Could not seed bootstrap API keys into MongoDB: {}", e.getMessage());
+        }
+    }
+
+    private void deactivateWellKnownDevKeys() {
+        for (String rawKey : WELL_KNOWN_DEV_KEYS) {
+            apiKeyRepository.findByHashedSecret(sha256Hex(rawKey)).ifPresent(key -> {
+                if (key.isActive()) {
+                    key.setActive(false);
+                    apiKeyRepository.save(key);
+                    log.warn("Deactivated well-known development API key '{}' (not running in dev mode).", key.getName());
+                }
+            });
         }
     }
 
@@ -63,7 +105,9 @@ public class ApiKeyService {
      * Creates a new scoped API key with high-entropy cryptographic token and SHA-256 hash.
      * The raw plaintext key is returned ONLY in this response and never persisted.
      */
-    public ApiKeyResponse createApiKey(CreateApiKeyRequest request) {
+    public ApiKeyResponse createApiKey(CreateApiKeyRequest request, ApiKey creator) {
+        requireCanGrant(creator, request);
+
         String prefix = (request.getPrefix() != null && !request.getPrefix().isBlank())
                 ? request.getPrefix()
                 : "sk_live_";
@@ -150,6 +194,50 @@ public class ApiKeyService {
             return false;
         }
         return true;
+    }
+
+    /**
+     * Throws ScopeViolationException unless the key holds the role for the given app and environment.
+     * Used where the target app/env is only known from the request body.
+     */
+    public void requireScope(ApiKey apiKey, String requiredRole, String app, String env) {
+        if (app == null || env == null || !authorize(apiKey, requiredRole, app, env)) {
+            throw new ScopeViolationException(requiredRole, app, env);
+        }
+    }
+
+    /**
+     * Prevents privilege escalation: a key may only mint keys whose roles, apps and
+     * environments it already holds itself.
+     */
+    private void requireCanGrant(ApiKey creator, CreateApiKeyRequest request) {
+        if (creator == null) {
+            throw new ScopeViolationException("Key creation requires an authenticated ADMIN key.");
+        }
+        if (!isSubset(request.getAllowedApps(), creator.getAllowedApps())
+                || !isSubset(request.getAllowedEnvironments(), creator.getAllowedEnvironments())) {
+            throw new ScopeViolationException("Cannot create a key with broader app or environment scope than the creating key.");
+        }
+        if (request.getRoles() != null) {
+            for (String role : request.getRoles()) {
+                if (!creator.hasPermission(role)) {
+                    throw new ScopeViolationException("Cannot grant role '" + role + "' that the creating key does not hold.");
+                }
+            }
+        }
+    }
+
+    private static boolean isSubset(List<String> requested, List<String> held) {
+        if (held != null && held.contains("*")) {
+            return true;
+        }
+        if (requested == null || requested.isEmpty()) {
+            return true; // an empty scope grants nothing
+        }
+        if (requested.contains("*")) {
+            return false;
+        }
+        return held != null && held.containsAll(requested);
     }
 
     /**

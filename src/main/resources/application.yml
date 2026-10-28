@@ -22,10 +22,15 @@ springdoc:
 
 # Application-specific configuration
 vault:
+  # Dev mode allows the published development master key and seeds the well-known dev API keys.
+  # Enable it only locally, via the 'dev' profile (SPRING_PROFILES_ACTIVE=dev).
+  dev-mode: false
   master:
-    key: ${VAULT_MASTER_KEY:0123456789abcdef0123456789abcdef}
+    key: ${VAULT_MASTER_KEY:}
+  bootstrap:
+    # Optional: an ADMIN API key seeded on startup outside dev mode (e.g. for a fresh deployment)
+    admin-key: ${VAULT_BOOTSTRAP_ADMIN_KEY:}
   api:
-    keys: sk-dev-key-001,sk-dev-key-002
     header-name: X-API-Key
   cache:
     ttl: 300

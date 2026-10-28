@@ -109,6 +109,21 @@ class SecretMaskingUtilTest {
     }
 
     @Test
+    void maskDiff_masksSecretsNestedInListValues() {
+        Map<String, Object> added = new java.util.LinkedHashMap<>();
+        added.put("servers", List.of(Map.of("secure_settings", Map.of("k", "v"), "host", "h")));
+        com.vault.configmanager.dto.response.DiffResponse diff =
+                new com.vault.configmanager.dto.response.DiffResponse(1, 2, added, Map.of(), Map.of(), 0);
+
+        com.vault.configmanager.dto.response.DiffResponse masked = SecretMaskingUtil.maskDiff(diff);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> element = ((List<Map<String, Object>>) masked.getAdded().get("servers")).get(0);
+        assertEquals(Map.of("k", "********"), element.get("secure_settings"));
+        assertEquals("h", element.get("host"));
+    }
+
+    @Test
     void nullHandling_returnsNullOrOriginal() {
         assertNull(SecretMaskingUtil.maskDocument(null));
         assertNull(SecretMaskingUtil.maskMap(null));

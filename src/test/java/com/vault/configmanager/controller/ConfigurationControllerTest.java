@@ -427,4 +427,18 @@ class ConfigurationControllerTest {
                         .header("X-API-Key", "sk-guest-read"))
                 .andExpect(jsonPath("$.value").value("db1"));
     }
+
+    @Test
+    void searchByParentPath_masksNestedSecretsForGuestOnly() throws Exception {
+        when(configurationService.searchByPath(eq("user-svc"), eq("prod"), eq("database"), any(), any()))
+                .thenReturn(Map.of("host", "db1", "secure_settings", Map.of("password", "hunter2")));
+
+        mockMvc.perform(get("/api/v1/vault/config/user-svc/prod/search?path=database")
+                        .header("X-API-Key", "sk-guest-read"))
+                .andExpect(jsonPath("$.value.host").value("db1"))
+                .andExpect(jsonPath("$.value.secure_settings.password").value("********"));
+        mockMvc.perform(get("/api/v1/vault/config/user-svc/prod/search?path=database")
+                        .header("X-API-Key", "sk-dev-key-001"))
+                .andExpect(jsonPath("$.value.secure_settings.password").value("hunter2"));
+    }
 }

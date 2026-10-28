@@ -143,8 +143,10 @@ public class ConfigurationController {
         String maskedKey = (String) servletRequest.getAttribute(ApiKeyAuthFilter.MASKED_KEY_ATTR);
 
         Object result = configurationService.searchByPath(app, env, path, ip, maskedKey);
-        if (!SecretVisibility.canReveal(servletRequest) && SecretMaskingUtil.isSensitivePath(path)) {
-            result = SecretMaskingUtil.MASKED_PLACEHOLDER;
+        if (!SecretVisibility.canReveal(servletRequest)) {
+            result = SecretMaskingUtil.isSensitivePath(path)
+                    ? SecretMaskingUtil.MASKED_PLACEHOLDER
+                    : SecretMaskingUtil.maskValue(result);
         }
         return ResponseEntity.ok(Map.of("path", path, "value", result));
     }

@@ -38,6 +38,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
 /**
@@ -141,7 +142,7 @@ public class ConfigurationService {
         // Expire older version after configured days if enabled
         latestOpt.ifPresent(this::retirePreviousVersion);
 
-        // 4. Persist new immutable document
+        // 5. Persist new immutable document
         LocalDateTime now = LocalDateTime.now();
         VaultDocument document = new VaultDocument(
                 app,
@@ -162,17 +163,17 @@ public class ConfigurationService {
             throw new DuplicateVersionException(app, env, nextVersion);
         }
 
-        // 5. Invalidate read cache
+        // 6. Invalidate read cache
         cacheService.evict(app, env);
 
-        // 6. Broadcast reactive change stream event
+        // 7. Broadcast reactive change stream event
         notifyChangeStream("CREATE", app, env, nextVersion, documentHash, saved.getTags());
 
-        // 7. Audit log
+        // 8. Audit log
         auditService.log("CREATE", app, env, requestingIp, apiKey, true, null);
         recordTelemetry(app, env, "WRITE", startTime, false, 201, requestingIp);
 
-        // 8. Return decrypted response
+        // 9. Return decrypted response
         Document decryptedPayload = jsonTraverser.decryptDocument(saved.getPayload());
         return toConfigResponse(saved, decryptedPayload);
     }
@@ -183,9 +184,9 @@ public class ConfigurationService {
      *
      * @throws IllegalArgumentException when a placeholder has no stored value at its path
      */
-    private Document resolveMaskedPlaceholders(Document incoming, java.util.function.Supplier<Document> currentDecrypted) {
+    private Document resolveMaskedPlaceholders(Document incoming, Supplier<Document> currentDecrypted) {
         Object[] cache = new Object[2];
-        java.util.function.Supplier<Document> lazy = () -> {
+        Supplier<Document> lazy = () -> {
             if (cache[0] == null) {
                 cache[0] = Boolean.TRUE;
                 cache[1] = currentDecrypted.get();
@@ -197,7 +198,7 @@ public class ConfigurationService {
 
     @SuppressWarnings("unchecked")
     private Map<String, Object> resolveMap(Map<String, Object> incoming, String path, boolean inSecure,
-                                           java.util.function.Supplier<Document> current) {
+                                           Supplier<Document> current) {
         Map<String, Object> result = new LinkedHashMap<>();
         for (Map.Entry<String, Object> entry : incoming.entrySet()) {
             String childPath = path.isEmpty() ? entry.getKey() : path + "." + entry.getKey();
@@ -208,7 +209,7 @@ public class ConfigurationService {
     }
 
     @SuppressWarnings("unchecked")
-    private Object resolveValue(Object value, String path, boolean inSecure, java.util.function.Supplier<Document> current) {
+    private Object resolveValue(Object value, String path, boolean inSecure, Supplier<Document> current) {
         if (value instanceof Map) {
             return resolveMap((Map<String, Object>) value, path, inSecure, current);
         }

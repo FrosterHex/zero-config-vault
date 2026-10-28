@@ -408,4 +408,70 @@ class ConfigurationServiceTest {
         Document db = savedPayloadDecrypted().get("database", Document.class);
         assertEquals("real", db.get("secure_settings", Document.class).getString("password"));
     }
+
+    private void storeV1(Document plain) {
+        Document encrypted = jsonTraverser.encryptDocument(plain);
+        VaultDocument v1 = new VaultDocument("app", "prod", 1, hashingService.computePayloadHash(encrypted),
+                encrypted, Map.of(), LocalDateTime.now(), null);
+        when(configurationRepository.findTopByApplicationNameAndEnvironmentOrderByVersionDesc("app", "prod"))
+                .thenReturn(Optional.of(v1));
+        when(configurationRepository.save(any(VaultDocument.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+    }
+
+    @Test
+    void create_placeholderOutsideSecureSettings_storedLiterally() {
+        storedV1WithPassword("real");
+        ConfigRequest request = new ConfigRequest("app", "prod",
+                Map.of("database", Map.of("host", "********", "secure_settings", Map.of("password", "********"))), Map.of());
+
+        configurationService.createConfiguration(request, "127.0.0.1", "k");
+
+        Document db = savedPayloadDecrypted().get("database", Document.class);
+        assertEquals("********", db.getString("host"));
+        assertEquals("real", db.get("secure_settings", Document.class).getString("password"));
+    }
+
+    @Test
+    void create_placeholdersAtSeveralDepths_resolveToTheirOwnPaths() {
+        storeV1(new Document("secure_settings", new Document("token", "t-real"))
+                .append("services", new Document("billing", new Document("secure_settings", new Document("key", "k-real")))));
+        ConfigRequest request = new ConfigRequest("app", "prod", Map.of(
+                "secure_settings", Map.of("token", "********"),
+                "services", Map.of("billing", Map.of("secure_settings", Map.of("key", "********")))), Map.of());
+
+        configurationService.createConfiguration(request, "127.0.0.1", "k");
+
+        Document saved = savedPayloadDecrypted();
+        assertEquals("t-real", saved.get("secure_settings", Document.class).getString("token"));
+        assertEquals("k-real", saved.get("services", Document.class).get("billing", Document.class)
+                .get("secure_settings", Document.class).getString("key"));
+    }
+
+    // JsonTraverser encrypts each direct child of secure_settings as one opaque value, so a stored list
+    // round-trips as its JSON text. The masked response therefore carries the whole value as one placeholder.
+    @Test
+    void create_placeholderForListSecret_keepsWholeStoredValue() {
+        storeV1(new Document("secure_settings", new Document("keys", List.of("old0", "old1"))));
+        ConfigRequest request = new ConfigRequest("app", "prod",
+                Map.of("secure_settings", Map.of("keys", "********")), Map.of());
+
+        configurationService.createConfiguration(request, "127.0.0.1", "k");
+
+        assertEquals("[\"old0\",\"old1\"]",
+                savedPayloadDecrypted().get("secure_settings", Document.class).get("keys"));
+    }
+
+    @Test
+    void create_placeholderInsideListElement_rejectedBecauseStoredSecretIsOpaque() {
+        storeV1(new Document("secure_settings", new Document("keys", List.of("old0", "old1"))));
+        ConfigRequest request = new ConfigRequest("app", "prod",
+                Map.of("secure_settings", Map.of("keys", List.of("********", "new"))), Map.of());
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> configurationService.createConfiguration(request, "127.0.0.1", "k"));
+
+        assertTrue(ex.getMessage().contains("secure_settings.keys.0"));
+        verify(configurationRepository, never()).save(any(VaultDocument.class));
+    }
 }

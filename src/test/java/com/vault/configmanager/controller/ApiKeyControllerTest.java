@@ -42,7 +42,7 @@ class ApiKeyControllerTest {
         ApiKey adminKey = new ApiKey("Admin", "sk-admin-", "hash", List.of("*"), List.of("*"), Set.of("ADMIN"), null);
         when(apiKeyService.validateAndAuthenticate("sk-admin-key-001")).thenReturn(java.util.Optional.of(adminKey));
         when(apiKeyService.authorize(eq(adminKey), anyString(), any(), any())).thenReturn(true);
-        ApiKeyAuthFilter filter = new ApiKeyAuthFilter(objectMapper, apiKeyService);
+        ApiKeyAuthFilter filter = new ApiKeyAuthFilter(objectMapper, apiKeyService, mock(AuditService.class));
         GlobalExceptionHandler exceptionHandler = new GlobalExceptionHandler(auditService);
 
         mockMvc = MockMvcBuilders.standaloneSetup(controller)

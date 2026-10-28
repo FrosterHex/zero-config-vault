@@ -35,7 +35,7 @@ class StreamControllerTest {
         objectMapper.findAndRegisterModules();
 
         StreamController controller = new StreamController(changeStreamService, auditService);
-        ApiKeyAuthFilter filter = new ApiKeyAuthFilter(objectMapper, TestApiKeys.withAdmin("sk-dev-key-001").service());
+        ApiKeyAuthFilter filter = new ApiKeyAuthFilter(objectMapper, TestApiKeys.withAdmin("sk-dev-key-001").service(), mock(AuditService.class));
         GlobalExceptionHandler exceptionHandler = new GlobalExceptionHandler(auditService);
 
         mockMvc = MockMvcBuilders.standaloneSetup(controller)

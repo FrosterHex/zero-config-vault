@@ -41,7 +41,7 @@ class BinaryConfigControllerTest {
         BinaryConfigController controller = new BinaryConfigController(binaryConfigService);
         TestApiKeys keys = TestApiKeys.withAdmin("sk-dev-key-001")
                 .register("sk-guest-read", List.of("*"), List.of("*"), Set.of("READ", "EXPORT"));
-        ApiKeyAuthFilter filter = new ApiKeyAuthFilter(objectMapper, keys.service());
+        ApiKeyAuthFilter filter = new ApiKeyAuthFilter(objectMapper, keys.service(), mock(AuditService.class));
         GlobalExceptionHandler exceptionHandler = new GlobalExceptionHandler(auditService);
 
         mockMvc = MockMvcBuilders.standaloneSetup(controller)

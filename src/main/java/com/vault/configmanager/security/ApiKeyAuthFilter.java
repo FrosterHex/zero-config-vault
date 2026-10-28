@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vault.configmanager.dto.response.ApiErrorResponse;
 import com.vault.configmanager.model.ApiKey;
 import com.vault.configmanager.service.ApiKeyService;
+import com.vault.configmanager.service.AuditService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -37,10 +38,12 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
 
     private final ObjectMapper objectMapper;
     private final ApiKeyService apiKeyService;
+    private final AuditService auditService;
 
-    public ApiKeyAuthFilter(ObjectMapper objectMapper, ApiKeyService apiKeyService) {
+    public ApiKeyAuthFilter(ObjectMapper objectMapper, ApiKeyService apiKeyService, AuditService auditService) {
         this.objectMapper = objectMapper;
         this.apiKeyService = apiKeyService;
+        this.auditService = auditService;
     }
 
     @Override
@@ -81,6 +84,7 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
         }
 
         if (rawApiKey == null || rawApiKey.isBlank()) {
+            auditDenied("AUTH_DENIED", request, "none");
             writeUnauthorized(response, "Missing API key. Provide a valid X-API-Key header.");
             return;
         }
@@ -90,6 +94,7 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
         // 1. Authenticate against the api_keys collection (the only source of credentials)
         Optional<ApiKey> keyOpt = apiKeyService.validateAndAuthenticate(rawApiKey);
         if (keyOpt.isEmpty()) {
+            auditDenied("AUTH_DENIED", request, maskApiKey(rawApiKey));
             writeUnauthorized(response, "Invalid API key.");
             return;
         }
@@ -104,6 +109,7 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
 
         boolean authorized = apiKeyService.authorize(authenticatedKey, requiredRole, app, env);
         if (!authorized) {
+            auditDenied("SCOPE_DENIED", request, maskApiKey(rawApiKey));
             writeForbidden(response, "API key unauthorized for role '" + requiredRole +
                     "' on app='" + (app != null ? app : "*") +
                     "', env='" + (env != null ? env : "*") + "'");
@@ -114,6 +120,12 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
         // Store masked key for downstream audit logging
         request.setAttribute(MASKED_KEY_ATTR, maskApiKey(rawApiKey));
         filterChain.doFilter(request, response);
+    }
+
+    private void auditDenied(String action, HttpServletRequest request, String maskedKey) {
+        String[] appAndEnv = extractAppAndEnv(request.getRequestURI());
+        auditService.log(action, appAndEnv[0], appAndEnv[1], request.getRemoteAddr(), maskedKey, false,
+                request.getMethod() + " " + request.getRequestURI());
     }
 
     private boolean allowsQueryParamKey(String method, String uri) {

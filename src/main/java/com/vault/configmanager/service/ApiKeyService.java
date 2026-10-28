@@ -41,7 +41,8 @@ public class ApiKeyService {
      * Well-known development keys that are published in the repository. They are only
      * seeded in dev mode, and are deactivated on startup outside dev mode.
      */
-    static final List<String> WELL_KNOWN_DEV_KEYS = List.of("sk-dev-key-001", "sk-dev-key-002", "sk-admin-key-001");
+    static final List<String> WELL_KNOWN_DEV_KEYS = List.of("sk-dev-key-001", "sk-dev-key-002", "sk-admin-key-001",
+            "sk-dev-guest-read", "sk-dev-guest-sandbox");
 
     @Value("${vault.dev-mode:false}")
     private boolean devMode;
@@ -58,12 +59,13 @@ public class ApiKeyService {
     public void seedDefaultKeys() {
         try {
             if (devMode) {
-                if (apiKeyRepository.count() == 0) {
-                    log.info("Dev mode: seeding well-known development API keys...");
-                    seedKey("sk-dev-key-001", "Default Dev Master Key", "sk-dev-", List.of("*"), List.of("*"), Set.of(ApiKeyRole.ADMIN.name()));
-                    seedKey("sk-dev-key-002", "Default Dev Read-Only Key", "sk-read-", List.of("*"), List.of("development", "staging"), Set.of(ApiKeyRole.READ.name()));
-                    seedKey("sk-admin-key-001", "Default Admin Platform Key", "sk-admin-", List.of("*"), List.of("*"), Set.of(ApiKeyRole.ADMIN.name()));
-                }
+                log.info("Dev mode: ensuring well-known development API keys exist...");
+                seedDevKeyIfMissing("sk-dev-key-001", "Default Dev Master Key", "sk-dev-", List.of("*"), List.of("*"), Set.of(ApiKeyRole.ADMIN.name()));
+                seedDevKeyIfMissing("sk-dev-key-002", "Default Dev Read-Only Key", "sk-read-", List.of("*"), List.of("development", "staging"), Set.of(ApiKeyRole.READ.name()));
+                seedDevKeyIfMissing("sk-admin-key-001", "Default Admin Platform Key", "sk-admin-", List.of("*"), List.of("*"), Set.of(ApiKeyRole.ADMIN.name()));
+                seedDevKeyIfMissing("sk-dev-guest-read", "Dev Dashboard Guest Read Key", "sk-dev-", List.of("*"), List.of("*"), Set.of(ApiKeyRole.READ.name(), ApiKeyRole.EXPORT.name()));
+                seedDevKeyIfMissing("sk-dev-guest-sandbox", "Dev Dashboard Guest Sandbox Key", "sk-dev-", List.of("playground"), List.of("*"),
+                        Set.of(ApiKeyRole.READ.name(), ApiKeyRole.WRITE.name(), ApiKeyRole.ROLLBACK.name()));
                 return;
             }
 
@@ -92,6 +94,12 @@ public class ApiKeyService {
                     log.warn("Deactivated well-known development API key '{}' (not running in dev mode).", key.getName());
                 }
             });
+        }
+    }
+
+    private void seedDevKeyIfMissing(String rawKey, String name, String prefix, List<String> apps, List<String> envs, Set<String> roles) {
+        if (apiKeyRepository.findByHashedSecret(sha256Hex(rawKey)).isEmpty()) {
+            seedKey(rawKey, name, prefix, apps, envs, roles);
         }
     }
 

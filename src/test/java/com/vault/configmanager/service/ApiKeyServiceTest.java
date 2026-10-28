@@ -257,12 +257,40 @@ class ApiKeyServiceTest {
     }
 
     @Test
-    void seedDefaultKeys_inDevMode_seedsWellKnownKeysIntoEmptyCollection() {
+    void seedDefaultKeys_inDevMode_seedsEachMissingWellKnownKey() {
         org.springframework.test.util.ReflectionTestUtils.setField(apiKeyService, "devMode", true);
-        when(apiKeyRepository.count()).thenReturn(0L);
+        ApiKey existing = new ApiKey("Default Dev Master Key", "sk-dev-", ApiKeyService.sha256Hex("sk-dev-key-001"),
+                List.of("*"), List.of("*"), Set.of("ADMIN"), null);
+        when(apiKeyRepository.findByHashedSecret(anyString())).thenReturn(Optional.empty());
+        when(apiKeyRepository.findByHashedSecret(ApiKeyService.sha256Hex("sk-dev-key-001")))
+                .thenReturn(Optional.of(existing));
 
         apiKeyService.seedDefaultKeys();
 
-        verify(apiKeyRepository, times(3)).save(any(ApiKey.class));
+        org.mockito.ArgumentCaptor<ApiKey> captor = org.mockito.ArgumentCaptor.forClass(ApiKey.class);
+        verify(apiKeyRepository, times(4)).save(captor.capture());
+        ApiKey sandbox = captor.getAllValues().stream()
+                .filter(k -> ApiKeyService.sha256Hex("sk-dev-guest-sandbox").equals(k.getHashedSecret()))
+                .findFirst().orElseThrow();
+        assertEquals(List.of("playground"), sandbox.getAllowedApps());
+        assertEquals(Set.of("READ", "WRITE", "ROLLBACK"), sandbox.getRoles());
+        ApiKey guestRead = captor.getAllValues().stream()
+                .filter(k -> ApiKeyService.sha256Hex("sk-dev-guest-read").equals(k.getHashedSecret()))
+                .findFirst().orElseThrow();
+        assertEquals(Set.of("READ", "EXPORT"), guestRead.getRoles());
+    }
+
+    @Test
+    void seedDefaultKeys_outsideDevMode_deactivatesGuestDevKeysToo() {
+        ApiKey guest = new ApiKey("Dev Guest Sandbox Key", "sk-dev-", ApiKeyService.sha256Hex("sk-dev-guest-sandbox"),
+                List.of("playground"), List.of("*"), Set.of("READ", "WRITE", "ROLLBACK"), null);
+        when(apiKeyRepository.findByHashedSecret(anyString())).thenReturn(Optional.empty());
+        when(apiKeyRepository.findByHashedSecret(ApiKeyService.sha256Hex("sk-dev-guest-sandbox")))
+                .thenReturn(Optional.of(guest));
+
+        apiKeyService.seedDefaultKeys();
+
+        assertFalse(guest.isActive());
+        verify(apiKeyRepository).save(guest);
     }
 }

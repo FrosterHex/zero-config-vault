@@ -53,9 +53,28 @@ public class DataBootstrapSeeder implements ApplicationRunner {
             seedConfigurationsIfEmpty();
             seedTelemetryIfEmpty();
             seedBinaryConfigsIfEmpty();
+            ensurePlayground();
         } catch (Exception e) {
             log.warn("DataBootstrapSeeder encountered a non-fatal notice during startup initialization: {}", e.getMessage());
         }
+    }
+
+    /**
+     * Makes sure the guest sandbox app exists. Runs independently of the "seed if empty" check
+     * so databases that already hold other data still get the playground.
+     */
+    void ensurePlayground() {
+        if (configurationRepository.findTopByApplicationNameAndEnvironmentOrderByVersionDesc("playground", "development").isPresent()) {
+            return;
+        }
+
+        log.info("Seeding the playground sandbox configuration...");
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("feature", Map.of("darkMode", false, "banner", "Welcome to the playground"));
+        payload.put("limits", Map.of("requestsPerMinute", 60));
+        payload.put("secure_settings", Map.of("apiToken", "pg_sandbox_token_123"));
+        configurationService.createConfiguration(new ConfigRequest("playground", "development", payload,
+                Map.of("purpose", "guest-sandbox")), "127.0.0.1", "sk-admin-key-001");
     }
 
     private void seedConfigurationsIfEmpty() {

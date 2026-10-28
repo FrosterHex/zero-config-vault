@@ -220,11 +220,36 @@ public class SecretMaskingUtil {
             for (Map.Entry<String, Map<String, Object>> entry : diff.getModified().entrySet()) {
                 modified.put(entry.getKey(), isSensitivePath(entry.getKey())
                         ? maskAllMapValues(entry.getValue())
-                        : entry.getValue());
+                        : maskEachValue(entry.getValue()));
             }
         }
         return new DiffResponse(diff.getVersionFrom(), diff.getVersionTo(), added, removed, modified,
                 diff.getUnchangedCount());
+    }
+
+    /**
+     * Structurally masks an arbitrary value: Maps via maskMap, Lists element by element, others unchanged.
+     */
+    @SuppressWarnings("unchecked")
+    public static Object maskValue(Object value) {
+        if (value instanceof Map) {
+            return maskMap((Map<String, Object>) value);
+        }
+        if (value instanceof List) {
+            return maskList((List<?>) value);
+        }
+        return value;
+    }
+
+    private static Map<String, Object> maskEachValue(Map<String, Object> values) {
+        if (values == null) {
+            return null;
+        }
+        Map<String, Object> copy = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> entry : values.entrySet()) {
+            copy.put(entry.getKey(), maskValue(entry.getValue()));
+        }
+        return copy;
     }
 
     private static Map<String, Object> maskPathValues(Map<String, Object> values) {
@@ -233,7 +258,7 @@ public class SecretMaskingUtil {
         }
         Map<String, Object> copy = new LinkedHashMap<>();
         for (Map.Entry<String, Object> entry : values.entrySet()) {
-            copy.put(entry.getKey(), isSensitivePath(entry.getKey()) ? MASKED_PLACEHOLDER : entry.getValue());
+            copy.put(entry.getKey(), isSensitivePath(entry.getKey()) ? MASKED_PLACEHOLDER : maskValue(entry.getValue()));
         }
         return copy;
     }

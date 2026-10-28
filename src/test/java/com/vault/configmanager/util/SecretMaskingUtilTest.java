@@ -81,6 +81,34 @@ class SecretMaskingUtilTest {
     }
 
     @Test
+    void isSensitivePath_detectsSecureSettingsSegment() {
+        assertTrue(SecretMaskingUtil.isSensitivePath("database.secure_settings.password"));
+        assertFalse(SecretMaskingUtil.isSensitivePath("database.host"));
+        assertTrue(SecretMaskingUtil.isSensitivePath("auth.password"));
+    }
+
+    @Test
+    void maskDiff_masksSecretValuesButKeepsPaths() {
+        Map<String, Object> added = new java.util.LinkedHashMap<>();
+        added.put("payment.secure_settings.apiKey", "sk_x");
+        added.put("payment.currency", "USD");
+        Map<String, Map<String, Object>> modified = new java.util.LinkedHashMap<>();
+        modified.put("database.secure_settings.password", Map.of("oldValue", "a", "newValue", "b"));
+        com.vault.configmanager.dto.response.DiffResponse diff =
+                new com.vault.configmanager.dto.response.DiffResponse(1, 2, added, Map.of(), modified, 0);
+
+        com.vault.configmanager.dto.response.DiffResponse masked = SecretMaskingUtil.maskDiff(diff);
+
+        assertEquals("********", masked.getAdded().get("payment.secure_settings.apiKey"));
+        assertEquals("USD", masked.getAdded().get("payment.currency"));
+        assertEquals("********", masked.getModified().get("database.secure_settings.password").get("oldValue"));
+        assertEquals("********", masked.getModified().get("database.secure_settings.password").get("newValue"));
+        assertEquals(added.keySet(), masked.getAdded().keySet());
+        assertEquals(modified.keySet(), masked.getModified().keySet());
+        assertEquals("sk_x", diff.getAdded().get("payment.secure_settings.apiKey"));
+    }
+
+    @Test
     void nullHandling_returnsNullOrOriginal() {
         assertNull(SecretMaskingUtil.maskDocument(null));
         assertNull(SecretMaskingUtil.maskMap(null));

@@ -1,5 +1,6 @@
 package com.vault.configmanager.util;
 
+import com.vault.configmanager.dto.response.DiffResponse;
 import org.bson.Document;
 
 import java.util.*;
@@ -186,6 +187,55 @@ public class SecretMaskingUtil {
             }
         }
         return false;
+    }
+
+    /**
+     * Returns true when any dot-separated segment of the path is a secure_settings or sensitive key name.
+     */
+    public static boolean isSensitivePath(String dotPath) {
+        if (dotPath == null) {
+            return false;
+        }
+        for (String segment : dotPath.split("\\.")) {
+            if (isSecureSettingsKey(segment) || isSensitiveKey(segment)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Returns a copy of the diff where every value under a sensitive path is replaced by the placeholder.
+     * The changed paths themselves stay visible.
+     */
+    public static DiffResponse maskDiff(DiffResponse diff) {
+        if (diff == null) {
+            return null;
+        }
+        Map<String, Object> added = maskPathValues(diff.getAdded());
+        Map<String, Object> removed = maskPathValues(diff.getRemoved());
+        Map<String, Map<String, Object>> modified = null;
+        if (diff.getModified() != null) {
+            modified = new LinkedHashMap<>();
+            for (Map.Entry<String, Map<String, Object>> entry : diff.getModified().entrySet()) {
+                modified.put(entry.getKey(), isSensitivePath(entry.getKey())
+                        ? maskAllMapValues(entry.getValue())
+                        : entry.getValue());
+            }
+        }
+        return new DiffResponse(diff.getVersionFrom(), diff.getVersionTo(), added, removed, modified,
+                diff.getUnchangedCount());
+    }
+
+    private static Map<String, Object> maskPathValues(Map<String, Object> values) {
+        if (values == null) {
+            return null;
+        }
+        Map<String, Object> copy = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> entry : values.entrySet()) {
+            copy.put(entry.getKey(), isSensitivePath(entry.getKey()) ? MASKED_PLACEHOLDER : entry.getValue());
+        }
+        return copy;
     }
 
     /**

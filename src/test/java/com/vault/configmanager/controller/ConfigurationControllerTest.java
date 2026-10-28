@@ -2,7 +2,10 @@ package com.vault.configmanager.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vault.configmanager.dto.request.ConfigRequest;
+import com.vault.configmanager.dto.request.BulkConfigRequest;
+import com.vault.configmanager.dto.response.BulkConfigResponse;
 import com.vault.configmanager.dto.response.ConfigResponse;
+import com.vault.configmanager.dto.response.DiffResponse;
 import com.vault.configmanager.dto.response.VersionSummary;
 import com.vault.configmanager.exception.ConfigNotFoundException;
 import com.vault.configmanager.exception.GlobalExceptionHandler;
@@ -44,7 +47,10 @@ class ConfigurationControllerTest {
         auditService = mock(AuditService.class);
 
         TestApiKeys keys = TestApiKeys.withAdmin("sk-dev-key-001")
-                .register("sk-scoped-writer", List.of("user-svc"), List.of("prod"), Set.of("READ", "WRITE"));
+                .register("sk-scoped-writer", List.of("user-svc"), List.of("prod"), Set.of("READ", "WRITE"))
+                .register("sk-guest-read", List.of("*"), List.of("*"), Set.of("READ", "EXPORT"))
+                .register("sk-guest-write", List.of("*"), List.of("*"), Set.of("READ", "WRITE"))
+                .register("sk-guest-sandbox", List.of("playground"), List.of("*"), Set.of("READ", "WRITE", "ROLLBACK"));
         ConfigurationController controller = new ConfigurationController(configurationService, exportService, keys.service());
         ApiKeyAuthFilter filter = new ApiKeyAuthFilter(objectMapper, keys.service());
         GlobalExceptionHandler exceptionHandler = new GlobalExceptionHandler(auditService);
@@ -305,5 +311,120 @@ class ConfigurationControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.payload.host").value("localhost"))
                 .andExpect(jsonPath("$.payload.password").value("********"));
+    }
+
+    private static ConfigResponse secretResponse(String app, String env) {
+        return new ConfigResponse("doc-1", app, env, 1, "hash123",
+                Map.of("host", "h", "secure_settings", Map.of("pw", "s")), Map.of(), LocalDateTime.now());
+    }
+
+    @Test
+    void getLatest_withoutReveal_masksEvenWhenMaskedFalseRequested() throws Exception {
+        when(configurationService.getLatestConfiguration(eq("user-svc"), eq("prod"), any(), any()))
+                .thenReturn(secretResponse("user-svc", "prod"));
+
+        mockMvc.perform(get("/api/v1/vault/config/user-svc/prod?masked=false")
+                        .header("X-API-Key", "sk-guest-read"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.payload.secure_settings.pw").value("********"))
+                .andExpect(jsonPath("$.payload.host").value("h"));
+    }
+
+    @Test
+    void getLatest_admin_revealsPlaintext() throws Exception {
+        when(configurationService.getLatestConfiguration(eq("user-svc"), eq("prod"), any(), any()))
+                .thenReturn(secretResponse("user-svc", "prod"));
+
+        mockMvc.perform(get("/api/v1/vault/config/user-svc/prod?masked=false")
+                        .header("X-API-Key", "sk-dev-key-001"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.payload.secure_settings.pw").value("s"));
+    }
+
+    @Test
+    void getByVersion_withoutReveal_masks() throws Exception {
+        when(configurationService.getConfigurationByVersion(eq("user-svc"), eq("prod"), eq(1), any(), any()))
+                .thenReturn(secretResponse("user-svc", "prod"));
+
+        mockMvc.perform(get("/api/v1/vault/config/user-svc/prod/version/1")
+                        .header("X-API-Key", "sk-guest-read"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.payload.secure_settings.pw").value("********"));
+    }
+
+    @Test
+    void rollback_withoutReveal_masksResponse() throws Exception {
+        when(configurationService.rollbackToVersion(eq("playground"), eq("dev"), eq(1), any(), any()))
+                .thenReturn(secretResponse("playground", "dev"));
+
+        mockMvc.perform(post("/api/v1/vault/config/playground/dev/rollback/1")
+                        .header("X-API-Key", "sk-guest-sandbox"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.payload.secure_settings.pw").value("********"));
+    }
+
+    @Test
+    void create_withoutReveal_masksResponse() throws Exception {
+        when(configurationService.createConfiguration(any(ConfigRequest.class), any(), any()))
+                .thenReturn(secretResponse("user-svc", "prod"));
+        ConfigRequest request = new ConfigRequest("user-svc", "prod",
+                Map.of("secure_settings", Map.of("pw", "s")), Map.of());
+
+        mockMvc.perform(post("/api/v1/vault/config")
+                        .header("X-API-Key", "sk-guest-write")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.payload.secure_settings.pw").value("********"));
+    }
+
+    @Test
+    void bulk_withoutReveal_masksEachResult() throws Exception {
+        BulkConfigResponse bulk = new BulkConfigResponse(1, 1, 0,
+                List.of(secretResponse("user-svc", "prod")), List.of());
+        when(configurationService.bulkImport(any(BulkConfigRequest.class), anyBoolean(), any(), any()))
+                .thenReturn(bulk);
+        BulkConfigRequest request = new BulkConfigRequest(List.of(new ConfigRequest("user-svc", "prod",
+                Map.of("secure_settings", Map.of("pw", "s")), Map.of())));
+
+        mockMvc.perform(post("/api/v1/vault/config/bulk")
+                        .header("X-API-Key", "sk-guest-write")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.results[0].payload.secure_settings.pw").value("********"));
+    }
+
+    @Test
+    void diff_withoutReveal_masksSecretValues() throws Exception {
+        Map<String, Object> added = new java.util.LinkedHashMap<>();
+        added.put("payment.secure_settings.apiKey", "sk_x");
+        added.put("payment.currency", "USD");
+        DiffResponse diff = new DiffResponse(1, 2, added, Map.of(),
+                Map.of("database.secure_settings.password", Map.of("oldValue", "a", "newValue", "b")), 0);
+        when(configurationService.diffVersions("user-svc", "prod", 1, 2)).thenReturn(diff);
+
+        mockMvc.perform(get("/api/v1/vault/config/user-svc/prod/diff?v1=1&v2=2")
+                        .header("X-API-Key", "sk-guest-read"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.added['payment.secure_settings.apiKey']").value("********"))
+                .andExpect(jsonPath("$.added['payment.currency']").value("USD"))
+                .andExpect(jsonPath("$.modified['database.secure_settings.password'].oldValue").value("********"))
+                .andExpect(jsonPath("$.modified['database.secure_settings.password'].newValue").value("********"));
+    }
+
+    @Test
+    void searchByPath_withoutReveal_masksSecretPath() throws Exception {
+        when(configurationService.searchByPath(eq("user-svc"), eq("prod"), eq("database.secure_settings.password"), any(), any()))
+                .thenReturn("hunter2");
+        when(configurationService.searchByPath(eq("user-svc"), eq("prod"), eq("database.host"), any(), any()))
+                .thenReturn("db1");
+
+        mockMvc.perform(get("/api/v1/vault/config/user-svc/prod/search?path=database.secure_settings.password")
+                        .header("X-API-Key", "sk-guest-read"))
+                .andExpect(jsonPath("$.value").value("********"));
+        mockMvc.perform(get("/api/v1/vault/config/user-svc/prod/search?path=database.host")
+                        .header("X-API-Key", "sk-guest-read"))
+                .andExpect(jsonPath("$.value").value("db1"));
     }
 }

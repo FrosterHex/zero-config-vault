@@ -18,6 +18,7 @@ import com.vault.configmanager.model.VaultDocument;
 import com.vault.configmanager.repository.ConfigurationRepository;
 import com.vault.configmanager.util.ConfigDiffUtil;
 import com.vault.configmanager.util.JsonTraverser;
+import com.vault.configmanager.util.SecretMaskingUtil;
 import org.bson.Document;
 import com.vault.configmanager.exception.BulkTransactionException;
 import org.slf4j.Logger;
@@ -122,16 +123,19 @@ public class ConfigurationService {
         String app = request.getApplicationName();
         String env = request.getEnvironment();
 
-        // 1. Encrypt secure_settings
-        Document rawPayload = new Document(request.getPayload());
-        Document encryptedPayload = jsonTraverser.encryptDocument(rawPayload);
-
-        // 2. Compute canonical SHA-512 fingerprint on encrypted payload
-        String documentHash = hashingService.computePayloadHash(encryptedPayload);
-
-        // 3. Determine next version number
+        // 1. Load the latest revision, then resolve masked placeholders against its stored secrets
         Optional<VaultDocument> latestOpt = configurationRepository
                 .findTopByApplicationNameAndEnvironmentOrderByVersionDesc(app, env);
+        Document rawPayload = resolveMaskedPlaceholders(new Document(request.getPayload()),
+                () -> latestOpt.map(v -> jsonTraverser.decryptDocument(v.getPayload())).orElse(null));
+
+        // 2. Encrypt secure_settings
+        Document encryptedPayload = jsonTraverser.encryptDocument(rawPayload);
+
+        // 3. Compute canonical SHA-512 fingerprint on encrypted payload
+        String documentHash = hashingService.computePayloadHash(encryptedPayload);
+
+        // 4. Determine next version number
         int nextVersion = latestOpt.map(v -> v.getVersion() + 1).orElse(1);
 
         // Expire older version after configured days if enabled
@@ -171,6 +175,80 @@ public class ConfigurationService {
         // 8. Return decrypted response
         Document decryptedPayload = jsonTraverser.decryptDocument(saved.getPayload());
         return toConfigResponse(saved, decryptedPayload);
+    }
+
+    /**
+     * Replaces every masked placeholder found under a secure_settings key with the value stored at the same
+     * path in the latest revision. The latest payload is decrypted lazily, only when a placeholder is present.
+     *
+     * @throws IllegalArgumentException when a placeholder has no stored value at its path
+     */
+    private Document resolveMaskedPlaceholders(Document incoming, java.util.function.Supplier<Document> currentDecrypted) {
+        Object[] cache = new Object[2];
+        java.util.function.Supplier<Document> lazy = () -> {
+            if (cache[0] == null) {
+                cache[0] = Boolean.TRUE;
+                cache[1] = currentDecrypted.get();
+            }
+            return (Document) cache[1];
+        };
+        return new Document(resolveMap(incoming, "", false, lazy));
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> resolveMap(Map<String, Object> incoming, String path, boolean inSecure,
+                                           java.util.function.Supplier<Document> current) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> entry : incoming.entrySet()) {
+            String childPath = path.isEmpty() ? entry.getKey() : path + "." + entry.getKey();
+            boolean childSecure = inSecure || SecretMaskingUtil.isSecureSettingsKey(entry.getKey());
+            result.put(entry.getKey(), resolveValue(entry.getValue(), childPath, childSecure, current));
+        }
+        return result;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Object resolveValue(Object value, String path, boolean inSecure, java.util.function.Supplier<Document> current) {
+        if (value instanceof Map) {
+            return resolveMap((Map<String, Object>) value, path, inSecure, current);
+        }
+        if (value instanceof List) {
+            List<Object> out = new ArrayList<>();
+            List<?> list = (List<?>) value;
+            for (int i = 0; i < list.size(); i++) {
+                out.add(resolveValue(list.get(i), path + "." + i, inSecure, current));
+            }
+            return out;
+        }
+        if (inSecure && SecretMaskingUtil.MASKED_PLACEHOLDER.equals(value)) {
+            Object stored = lookupPath(current.get(), path);
+            if (stored == null) {
+                throw new IllegalArgumentException(
+                        "Masked placeholder at '" + path + "' has no stored secret to keep; provide a real value");
+            }
+            return stored;
+        }
+        return value;
+    }
+
+    private Object lookupPath(Object node, String path) {
+        Object cursor = node;
+        for (String segment : path.split("\\.")) {
+            if (cursor instanceof Map) {
+                cursor = ((Map<?, ?>) cursor).get(segment);
+            } else if (cursor instanceof List) {
+                try {
+                    int idx = Integer.parseInt(segment);
+                    List<?> l = (List<?>) cursor;
+                    cursor = idx >= 0 && idx < l.size() ? l.get(idx) : null;
+                } catch (NumberFormatException e) {
+                    return null;
+                }
+            } else {
+                return null;
+            }
+        }
+        return cursor;
     }
 
     /**

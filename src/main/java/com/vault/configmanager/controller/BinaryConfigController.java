@@ -2,7 +2,9 @@ package com.vault.configmanager.controller;
 
 import com.vault.configmanager.dto.response.BinaryConfigResponse;
 import com.vault.configmanager.dto.response.BinaryPayload;
+import com.vault.configmanager.exception.ScopeViolationException;
 import com.vault.configmanager.security.ApiKeyAuthFilter;
+import com.vault.configmanager.security.SecretVisibility;
 import com.vault.configmanager.service.BinaryConfigService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpHeaders;
@@ -77,6 +79,9 @@ public class BinaryConfigController {
             @RequestParam(required = false) Integer version,
             HttpServletRequest request) {
 
+        if (!SecretVisibility.canReveal(request)) {
+            throw new ScopeViolationException("Downloading binary content requires the REVEAL_SECRETS permission");
+        }
         String ip = request.getRemoteAddr();
         String maskedKey = (String) request.getAttribute(ApiKeyAuthFilter.MASKED_KEY_ATTR);
 

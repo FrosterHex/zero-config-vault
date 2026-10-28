@@ -89,7 +89,7 @@ class ExportServiceTest {
         when(configurationService.getLatestConfiguration(eq("app1"), eq("prod"), anyString(), anyString()))
                 .thenReturn(configResponse);
 
-        ExportResult result = exportService.exportConfig("app1", "prod", null, "json", "127.0.0.1", "sk-test");
+        ExportResult result = exportService.exportConfig("app1", "prod", null, "json", true, "127.0.0.1", "sk-test");
 
         assertEquals("application/json", result.getContentType());
         assertEquals("app1-prod-v3.json", result.getFileName());
@@ -108,7 +108,7 @@ class ExportServiceTest {
         when(configurationService.getConfigurationByVersion(eq("app1"), eq("staging"), eq(2), anyString(), anyString()))
                 .thenReturn(configResponse);
 
-        ExportResult result = exportService.exportConfig("app1", "staging", 2, "yaml", "127.0.0.1", "sk-test");
+        ExportResult result = exportService.exportConfig("app1", "staging", 2, "yaml", true, "127.0.0.1", "sk-test");
 
         assertEquals("application/x-yaml", result.getContentType());
         assertEquals("app1-staging-v2.yaml", result.getFileName());
@@ -127,7 +127,7 @@ class ExportServiceTest {
         when(configurationService.getLatestConfiguration(eq("app1"), eq("dev"), anyString(), anyString()))
                 .thenReturn(configResponse);
 
-        ExportResult result = exportService.exportConfig("app1", "dev", null, "env", "127.0.0.1", "sk-test");
+        ExportResult result = exportService.exportConfig("app1", "dev", null, "env", true, "127.0.0.1", "sk-test");
 
         assertEquals("text/plain", result.getContentType());
         assertEquals("app1-dev-v1.env", result.getFileName());
@@ -144,7 +144,26 @@ class ExportServiceTest {
                 .thenReturn(configResponse);
 
         assertThrows(IllegalArgumentException.class, () ->
-                exportService.exportConfig("app1", "prod", null, "xml", "127.0.0.1", "sk-test")
+                exportService.exportConfig("app1", "prod", null, "xml", true, "127.0.0.1", "sk-test")
         );
+    }
+
+    @Test
+    void exportConfig_withoutReveal_masksAllFormats() {
+        Map<String, Object> payload = Map.of("secure_settings", Map.of("pw", "s3cr3t"));
+        ConfigResponse configResponse = new ConfigResponse(
+                "id1", "app1", "prod", 1, "hash", payload, Map.of(), LocalDateTime.now()
+        );
+        when(configurationService.getLatestConfiguration(eq("app1"), eq("prod"), anyString(), anyString()))
+                .thenReturn(configResponse);
+
+        for (String format : List.of("json", "yaml", "env")) {
+            String masked = exportService.exportConfig("app1", "prod", null, format, false, "127.0.0.1", "sk-test").getContent();
+            assertFalse(masked.contains("s3cr3t"), format);
+            assertTrue(masked.contains("********"), format);
+
+            String revealed = exportService.exportConfig("app1", "prod", null, format, true, "127.0.0.1", "sk-test").getContent();
+            assertTrue(revealed.contains("s3cr3t"), format);
+        }
     }
 }

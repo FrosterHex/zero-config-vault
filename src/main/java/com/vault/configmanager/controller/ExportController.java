@@ -2,6 +2,7 @@ package com.vault.configmanager.controller;
 
 import com.vault.configmanager.dto.response.ExportResult;
 import com.vault.configmanager.security.ApiKeyAuthFilter;
+import com.vault.configmanager.security.SecretVisibility;
 import com.vault.configmanager.service.ExportService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpHeaders;
@@ -43,7 +44,8 @@ public class ExportController {
         String ip = servletRequest.getRemoteAddr();
         String maskedKey = (String) servletRequest.getAttribute(ApiKeyAuthFilter.MASKED_KEY_ATTR);
 
-        ExportResult result = exportService.exportConfig(app, env, version, format, ip, maskedKey);
+        ExportResult result = exportService.exportConfig(app, env, version, format,
+                SecretVisibility.canReveal(servletRequest), ip, maskedKey);
 
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_TYPE, result.getContentType())

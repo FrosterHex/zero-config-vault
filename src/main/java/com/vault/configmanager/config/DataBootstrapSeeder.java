@@ -53,9 +53,13 @@ public class DataBootstrapSeeder implements ApplicationRunner {
             seedConfigurationsIfEmpty();
             seedTelemetryIfEmpty();
             seedBinaryConfigsIfEmpty();
-            ensurePlayground();
         } catch (Exception e) {
             log.warn("DataBootstrapSeeder encountered a non-fatal notice during startup initialization: {}", e.getMessage());
+        }
+        try {
+            ensurePlayground();
+        } catch (Exception e) {
+            log.warn("Playground sandbox seeding failed (non-fatal): {}", e.getMessage());
         }
     }
 

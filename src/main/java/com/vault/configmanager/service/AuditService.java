@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.regex.Pattern;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
@@ -26,6 +27,8 @@ public class AuditService {
     private final AuditLogRepository auditLogRepository;
 
     private static final int MAX_LIMIT = 200;
+
+    private static final Pattern IP_LITERAL_CHARS = Pattern.compile("[0-9a-fA-F:.]+");
 
     private final MongoTemplate mongoTemplate;
 
@@ -132,10 +135,18 @@ public class AuditService {
             return "unknown";
         }
         String value = ip.trim();
+        int zone = value.indexOf('%');
+        if (zone >= 0) {
+            value = value.substring(0, zone);
+        }
         if (value.contains(":")) {
+            // Only characters of an IP literal pass, and the brackets make the JDK reject anything that
+            // is not an IPv6 literal instead of resolving it as a host name, so no DNS lookup can happen
+            if (!IP_LITERAL_CHARS.matcher(value).matches()) {
+                return "unknown";
+            }
             try {
-                // A literal containing ':' is parsed locally, never resolved through DNS
-                InetAddress address = InetAddress.getByName(value);
+                InetAddress address = InetAddress.getByName("[" + value + "]");
                 if (address instanceof Inet6Address) {
                     byte[] b = address.getAddress();
                     return hextet(b, 0) + ":" + hextet(b, 2) + ":" + hextet(b, 4) + ":x";

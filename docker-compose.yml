@@ -89,8 +89,12 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - NEXT_PUBLIC_VAULT_API_URL=http://localhost:8080
-      - NEXT_PUBLIC_VAULT_API_KEY=sk-dev-key-001
+      - VAULT_API_URL=http://backend:8080
+      - VAULT_GUEST_READ_KEY=sk-dev-guest-read
+      - VAULT_GUEST_SANDBOX_KEY=sk-dev-guest-sandbox
+      - VAULT_ADMIN_KEY=sk-dev-key-001
+      - ADMIN_PASSWORD=admin
+      - SESSION_SECRET=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
     depends_on:
       backend:
         condition: service_healthy

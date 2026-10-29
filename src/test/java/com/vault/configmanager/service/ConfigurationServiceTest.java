@@ -321,6 +321,20 @@ class ConfigurationServiceTest {
     }
 
     @Test
+    void bulkImport_atomic_withoutTransactionManager_requiresReplicaSetAndWritesNothing() {
+        ConfigRequest req = new ConfigRequest("app-x", "prod", Map.of("key", "val"), Map.of());
+        com.vault.configmanager.dto.request.BulkConfigRequest bulkRequest =
+                new com.vault.configmanager.dto.request.BulkConfigRequest(List.of(req));
+
+        com.vault.configmanager.exception.BulkTransactionException ex = assertThrows(
+                com.vault.configmanager.exception.BulkTransactionException.class,
+                () -> configurationService.bulkImport(bulkRequest, true, "127.0.0.1", "key"));
+
+        assertTrue(ex.getMessage().contains("requires a replica set"));
+        verify(configurationRepository, never()).save(any(VaultDocument.class));
+    }
+
+    @Test
     void createConfiguration_searchableTextNeverContainsSecrets() {
         when(configurationRepository.findTopByApplicationNameAndEnvironmentOrderByVersionDesc("user-service", "prod"))
                 .thenReturn(Optional.empty());

@@ -1,10 +1,12 @@
 /**
  * Zero-Config Vault API Client Library
- * Connects frontend dashboard components directly to Spring Boot backend REST & SSE channels.
+ * Talks to the same-origin /api/vault proxy, which attaches credentials server-side.
+ * This module never handles an API key.
  */
 
-const BASE_URL = process.env.NEXT_PUBLIC_VAULT_API_URL || "http://localhost:8080";
-const DEFAULT_API_KEY = process.env.NEXT_PUBLIC_VAULT_API_KEY || "sk-dev-key-001";
+const BASE_URL = "/api/vault";
+
+export type Role = "guest" | "admin";
 
 export interface ConfigResponse {
   id: string;
@@ -99,75 +101,170 @@ export interface SearchResult {
   matchingSnippets: Record<string, unknown>;
 }
 
+const RETRY_STATUSES = new Set([502, 503, 504]);
+const INITIAL_BACKOFF_MS = 1_000;
+const MAX_BACKOFF_MS = 8_000;
+const WAKE_TIMEOUT_MS = 90_000;
+
+const wakingListeners = new Set<(waking: boolean) => void>();
+let wakingCount = 0;
+
+function setWakingDelta(delta: 1 | -1) {
+  const wasWaking = wakingCount > 0;
+  wakingCount += delta;
+  const isWaking = wakingCount > 0;
+  if (wasWaking !== isWaking) wakingListeners.forEach((listener) => listener(isWaking));
+}
+
+/** Subscribes to "vault is waking up" changes. Returns an unsubscribe function. */
+export function onWakingChange(listener: (waking: boolean) => void): () => void {
+  wakingListeners.add(listener);
+  return () => {
+    wakingListeners.delete(listener);
+  };
+}
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/**
+ * fetch with a wake-up retry for idempotent reads. The hosted vault can be asleep, so GET/HEAD
+ * retry on 502/503/504 or a network error with exponential backoff. Other methods never retry,
+ * since a retry could create a duplicate version.
+ */
+async function send(endpoint: string, options: RequestInit = {}): Promise<Response> {
+  const method = (options.method || "GET").toUpperCase();
+  const retryable = method === "GET" || method === "HEAD";
+  const startedAt = Date.now();
+  let delay = INITIAL_BACKOFF_MS;
+  let waking = false;
+
+  try {
+    for (;;) {
+      let response: Response | null = null;
+      let networkError: unknown = null;
+      try {
+        response = await fetch(`${BASE_URL}${endpoint}`, options);
+      } catch (err) {
+        networkError = err;
+      }
+
+      if (response && !RETRY_STATUSES.has(response.status)) return response;
+      if (!retryable) {
+        if (response) return response;
+        throw networkError;
+      }
+
+      if (Date.now() - startedAt + delay > WAKE_TIMEOUT_MS) {
+        throw new Error("The vault is still waking up. Please try again in a minute.");
+      }
+      if (!waking) {
+        waking = true;
+        setWakingDelta(1);
+      }
+      await sleep(delay);
+      delay = Math.min(delay * 2, MAX_BACKOFF_MS);
+    }
+  } finally {
+    if (waking) setWakingDelta(-1);
+  }
+}
+
+async function errorMessage(response: Response, fallback: string): Promise<string> {
+  try {
+    const errJson = await response.json();
+    if (errJson.message) return errJson.message;
+  } catch {
+    // ignore json parse error
+  }
+  return fallback;
+}
+
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const headers = new Headers(options.headers || {});
   if (!headers.has("Accept")) {
     headers.set("Accept", "application/json");
   }
-  if (!headers.has("X-API-Key")) {
-    headers.set("X-API-Key", DEFAULT_API_KEY);
-  }
   if (options.body && typeof options.body === "string" && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
 
-  const response = await fetch(`${BASE_URL}${endpoint}`, {
-    ...options,
-    headers,
-  });
-
+  const response = await send(endpoint, { ...options, headers });
   if (!response.ok) {
-    let errorMsg = `HTTP Error ${response.status}: ${response.statusText}`;
-    try {
-      const errJson = await response.json();
-      if (errJson.message) errorMsg = errJson.message;
-    } catch {
-      // ignore json parse error
-    }
-    throw new Error(errorMsg);
+    throw new Error(await errorMessage(response, `HTTP Error ${response.status}: ${response.statusText}`));
   }
-
   return response.json();
 }
+
+async function authRequest(path: string, init: RequestInit): Promise<Response> {
+  const response = await fetch(`/api/auth/${path}`, init);
+  if (!response.ok) {
+    throw new Error(await errorMessage(response, `HTTP Error ${response.status}`));
+  }
+  return response;
+}
+
+export const authApi = {
+  login: async (password: string): Promise<void> => {
+    await authRequest("login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password }),
+    });
+  },
+
+  logout: async (): Promise<void> => {
+    await authRequest("logout", { method: "POST" });
+  },
+
+  session: async (): Promise<Role> => {
+    const response = await authRequest("session", { headers: { Accept: "application/json" } });
+    const body = await response.json();
+    return body?.role === "admin" ? "admin" : "guest";
+  },
+};
 
 export const vaultApi = {
   // Configuration Endpoints
   getLatestConfig: (app: string, env: string, masked: boolean = false) =>
-    request<ConfigResponse>(`/api/v1/vault/config/${app}/${env}?masked=${masked}`),
+    request<ConfigResponse>(`/config/${app}/${env}?masked=${masked}`),
 
   getConfigByVersion: (app: string, env: string, version: number, masked: boolean = false) =>
-    request<ConfigResponse>(`/api/v1/vault/config/${app}/${env}/version/${version}?masked=${masked}`),
+    request<ConfigResponse>(`/config/${app}/${env}/version/${version}?masked=${masked}`),
 
   listVersions: (app: string, env: string) =>
-    request<VersionSummary[]>(`/api/v1/vault/config/${app}/${env}/versions`),
+    request<VersionSummary[]>(`/config/${app}/${env}/versions`),
 
   createConfig: (app: string, env: string, payload: Record<string, unknown>, tags: Record<string, string> = {}) =>
-    request<ConfigResponse>(`/api/v1/vault/config`, {
+    request<ConfigResponse>(`/config`, {
       method: "POST",
       body: JSON.stringify({ applicationName: app, environment: env, payload, tags }),
     }),
 
   patchConfig: (app: string, env: string, partialPayload: Record<string, unknown>) =>
-    request<ConfigResponse>(`/api/v1/vault/config/${app}/${env}`, {
+    request<ConfigResponse>(`/config/${app}/${env}`, {
       method: "PATCH",
       body: JSON.stringify(partialPayload),
     }),
 
   rollbackConfig: (app: string, env: string, targetVersion: number) =>
-    request<ConfigResponse>(`/api/v1/vault/config/${app}/${env}/rollback/${targetVersion}`, {
+    request<ConfigResponse>(`/config/${app}/${env}/rollback/${targetVersion}`, {
       method: "POST",
     }),
 
   diffVersions: (app: string, env: string, v1: number, v2: number) =>
-    request<DiffResponse>(`/api/v1/vault/config/${app}/${env}/diff?v1=${v1}&v2=${v2}`),
+    request<DiffResponse>(`/config/${app}/${env}/diff?v1=${v1}&v2=${v2}`),
 
   searchByPath: (app: string, env: string, path: string) =>
-    request<{ path: string; value: unknown }>(`/api/v1/vault/config/${app}/${env}/search?path=${encodeURIComponent(path)}`),
+    request<{ path: string; value: unknown }>(`/config/${app}/${env}/search?path=${encodeURIComponent(path)}`),
 
   // Export Studio Endpoint
-  exportConfig: (app: string, env: string, format: string = "json", version?: number) => {
+  exportConfig: async (app: string, env: string, format: string = "json", version?: number): Promise<string> => {
     const vParam = version ? `&version=${version}` : "";
-    return `${BASE_URL}/api/v1/vault/config/${app}/${env}/export?format=${format}${vParam}`;
+    const response = await send(`/config/${app}/${env}/export?format=${format}${vParam}`);
+    if (!response.ok) {
+      throw new Error(await errorMessage(response, `Export failed: HTTP ${response.status}`));
+    }
+    return response.text();
   },
 
   // GridFS Binary Blob Endpoints
@@ -183,35 +280,22 @@ export const vaultApi = {
       fileSizeBytes: number;
       documentHash: string;
       createdAt: string;
-    }>>(`/api/v1/vault/binaries/${app}/${env}`),
+    }>>(`/binaries/${app}/${env}`),
 
   uploadBinary: async (app: string, env: string, file: File, metadata: Record<string, string> = {}) => {
     const formData = new FormData();
     formData.append("file", file);
     Object.entries(metadata).forEach(([k, v]) => formData.append(k, v));
-    const headers = new Headers();
-    headers.set("X-API-Key", DEFAULT_API_KEY);
-    const response = await fetch(`${BASE_URL}/api/v1/vault/binaries/${app}/${env}/upload`, {
-      method: "POST",
-      headers,
-      body: formData,
-    });
+    const response = await send(`/binaries/${app}/${env}/upload`, { method: "POST", body: formData });
     if (!response.ok) {
-      let errorMsg = `Upload failed: HTTP ${response.status}`;
-      try {
-        const errJson = await response.json();
-        if (errJson.message) errorMsg = errJson.message;
-      } catch {
-        // ignore
-      }
-      throw new Error(errorMsg);
+      throw new Error(await errorMessage(response, `Upload failed: HTTP ${response.status}`));
     }
     return response.json();
   },
 
   getBinaryDownloadUrl: (app: string, env: string, filename: string, version?: number) => {
-    const vParam = version ? `?version=${version}&apiKey=${DEFAULT_API_KEY}` : `?apiKey=${DEFAULT_API_KEY}`;
-    return `${BASE_URL}/api/v1/vault/binaries/${app}/${env}/${filename}${vParam}`;
+    const vParam = version ? `?version=${version}` : "";
+    return `${BASE_URL}/binaries/${app}/${env}/${filename}${vParam}`;
   },
 
   // Scoped API Key Endpoints
@@ -226,7 +310,7 @@ export const vaultApi = {
       active: boolean;
       createdAt: string;
       lastUsedAt?: string;
-    }>>(`/api/v1/vault/keys`),
+    }>>(`/keys`),
 
   createApiKey: (data: {
     name: string;
@@ -243,19 +327,19 @@ export const vaultApi = {
       allowedApps: string[];
       allowedEnvironments: string[];
       roles: string[];
-    }>(`/api/v1/vault/keys`, {
+    }>(`/keys`, {
       method: "POST",
       body: JSON.stringify(data),
     }),
 
   deleteApiKey: (id: string) =>
-    request<{ message: string }>(`/api/v1/vault/keys/${id}`, {
+    request<{ message: string }>(`/keys/${id}`, {
       method: "DELETE",
     }),
 
   // Telemetry Dashboard
   getStats: async () => {
-    const raw = await request<StatsResponse>(`/api/v1/vault/stats`);
+    const raw = await request<StatsResponse>(`/stats`);
     return {
       ...raw,
       averageVersionsPerApplication: raw.averageVersionsPerApp ?? raw.averageVersionsPerApplication ?? 0,
@@ -266,25 +350,30 @@ export const vaultApi = {
 
   // MongoDB Native Time-Series Telemetry
   getTelemetryStats: (minutes: number = 60) =>
-    request<TelemetryStats>(`/api/v1/vault/stats/telemetry?minutes=${minutes}`),
+    request<TelemetryStats>(`/stats/telemetry?minutes=${minutes}`),
 
   // MongoDB Engine-Level $jsonSchema Governance
   getSchemaValidation: () =>
-    request<SchemaValidation>(`/api/v1/vault/stats/schema`),
+    request<SchemaValidation>(`/stats/schema`),
 
   // MongoDB Full-Text and Regex Search
   searchConfigs: (query: string) =>
-    request<SearchResult[]>(`/api/v1/vault/config/search?query=${encodeURIComponent(query)}`),
+    request<SearchResult[]>(`/config/search?query=${encodeURIComponent(query)}`),
 
   // Server-Sent Events (SSE) Stream
   subscribeToStream: (
     app: string,
     env: string,
     onMessage: (event: StreamEvent) => void,
-    onError?: (error: Event) => void
+    onError?: (error: Event) => void,
+    onOpen?: () => void
   ): (() => void) => {
-    const url = `${BASE_URL}/api/v1/vault/stream/${app}/${env}?apiKey=${encodeURIComponent(DEFAULT_API_KEY)}`;
-    const eventSource = new EventSource(url);
+    const eventSource = new EventSource(`${BASE_URL}/stream/${app}/${env}`);
+
+    // Fires on every (re)connect, so callers can resync after a dropped stream.
+    if (onOpen) {
+      eventSource.onopen = () => onOpen();
+    }
 
     eventSource.onmessage = (e) => {
       try {

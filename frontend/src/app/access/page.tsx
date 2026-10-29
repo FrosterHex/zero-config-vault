@@ -40,7 +40,7 @@ export default function AccessPage() {
         {
           id: "key-01",
           name: "Default Dev Master Key",
-          keyPrefix: "sk-dev-",
+          keyPrefix: "sk_live_",
           allowedApps: ["*"],
           allowedEnvironments: ["*"],
           roles: ["ADMIN"],
@@ -50,7 +50,7 @@ export default function AccessPage() {
         {
           id: "key-02",
           name: "Default Dev Read-Only Key",
-          keyPrefix: "sk-read-",
+          keyPrefix: "sk_read_",
           allowedApps: ["*"],
           allowedEnvironments: ["dev", "staging"],
           roles: ["READ"],
@@ -60,7 +60,7 @@ export default function AccessPage() {
         {
           id: "key-03",
           name: "Payment Gateway Microservice Key",
-          keyPrefix: "sk-pay-",
+          keyPrefix: "sk_pay_",
           allowedApps: ["payment-gateway"],
           allowedEnvironments: ["production", "staging"],
           roles: ["READ_WRITE"],

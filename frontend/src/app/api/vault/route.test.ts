@@ -48,6 +48,10 @@ describe("path policy", () => {
   it("rejects a segment containing a space", () => {
     expect(isAllowedPath(["config", "my app"])).toBe(false);
   });
+  it("percent-encodes non-ASCII segments", async () => {
+    await GET(new Request(`${ORIGIN}/api/vault/config/%C3%A4`), ctx("config", "\u00e4"));
+    expect(fetchMock.mock.calls[0][0]).toContain("/config/%C3%A4");
+  });
   it("builds upstream URL from encoded segments", async () => {
     await GET(new Request(`${ORIGIN}/api/vault/config/my-app/x`), ctx("config", "my-app", "x"));
     expect(fetchMock.mock.calls[0][0]).toBe("http://vault.test:8080/api/v1/vault/config/my-app/x");
@@ -172,6 +176,29 @@ describe("response passthrough", () => {
     expect(res.headers.get("content-disposition")).toBe("attachment; filename=a.txt");
     expect(res.headers.get("set-cookie")).toBeNull();
     expect(res.body).toBe(upstream.body);
+  });
+});
+
+describe("upstream hardening", () => {
+  it("drops content-length and content-encoding from the response", async () => {
+    fetchMock.mockResolvedValue(
+      new Response("ok", {
+        headers: { "content-length": "999", "content-encoding": "gzip", "content-type": "text/plain" },
+      }),
+    );
+    const res = await GET(new Request(`${ORIGIN}/api/vault/export/a`), ctx("export", "a"));
+    expect(res.headers.get("content-length")).toBeNull();
+    expect(res.headers.get("content-encoding")).toBeNull();
+  });
+  it("does not follow redirects and passes 3xx through", async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 302, headers: { location: "http://x.test" } }));
+    const res = await GET(new Request(`${ORIGIN}/api/vault/export/a`), ctx("export", "a"));
+    expect(fetchMock.mock.calls[0][1].redirect).toBe("manual");
+    expect(res.status).toBe(302);
+  });
+  it("sets duplex only when a body is forwarded", async () => {
+    await GET(new Request(`${ORIGIN}/api/vault/export/a`), ctx("export", "a"));
+    expect(fetchMock.mock.calls[0][1].duplex).toBeUndefined();
   });
 });
 

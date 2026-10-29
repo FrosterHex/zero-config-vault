@@ -61,21 +61,26 @@ async function proxy(req: Request, { params }: Ctx): Promise<Response> {
 
   let upstream: Response;
   try {
-    upstream = await fetch(url, {
+    const init: RequestInit & { duplex?: "half" } = {
       method,
       headers,
-      body: isRead ? undefined : req.body,
-      // Node fetch needs duplex for streamed bodies; the DOM typings omit it.
-      duplex: "half",
       signal: req.signal,
       cache: "no-store",
-    } as RequestInit);
+      // Never follow redirects: the X-API-Key header must not reach another host.
+      redirect: "manual",
+    };
+    if (!isRead && req.body) {
+      init.body = req.body;
+      // Node fetch needs duplex for streamed bodies; the DOM typings omit it.
+      init.duplex = "half";
+    }
+    upstream = await fetch(url, init);
   } catch {
     return json(502, "Vault backend unreachable");
   }
 
   const out = new Headers();
-  for (const name of ["content-type", "content-disposition", "cache-control", "content-length"]) {
+  for (const name of ["content-type", "content-disposition", "cache-control"]) {
     const value = upstream.headers.get(name);
     if (value) out.set(name, value);
   }

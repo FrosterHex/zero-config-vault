@@ -141,8 +141,8 @@ export default function BinariesPage() {
               Binary Configurations & Keystores
             </h1>
             <p className="text-xs sm:text-sm text-slate-400 font-['Montserrat',sans-serif] font-light mt-1 max-w-2xl">
-              Securely store, version, and download binary assets (TLS certificates, Java .jks keystores, PEM bundles)
-              with temporal GitOps versioning and SHA-512 cryptographic verification.
+              Store, version and download binary files (TLS certificates, Java .jks keystores, PEM bundles) in GridFS.
+              Each upload is a new version with a SHA-512 hash; files are stored as uploaded and are not encrypted by the vault.
             </p>
           </div>
 
@@ -262,7 +262,7 @@ export default function BinariesPage() {
             <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
               <div className="flex items-center gap-2 text-[11px] font-mono text-slate-400">
                 <ShieldCheck className="h-4 w-4 text-emerald-400" />
-                <span>Zero-byte chunk leakage • SHA-512 canonical verification</span>
+                <span>Each version gets a SHA-512 hash • files are stored as uploaded, not encrypted</span>
               </div>
 
               <button
@@ -361,7 +361,7 @@ export default function BinariesPage() {
                     <div className="flex justify-between text-slate-400">
                       <span>SHA-512 Hash:</span>
                       <span className="text-emerald-400 truncate max-w-[140px]" title={bin.documentHash}>
-                        {bin.documentHash ? `${bin.documentHash.substring(0, 16)}...` : "Canonical Verified"}
+                        {bin.documentHash ? `${bin.documentHash.substring(0, 16)}...` : "—"}
                       </span>
                     </div>
                   </div>

@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { vaultApi, authApi, onWakingChange, StatsResponse, Role } from "@/lib/api";
 
 export type Environment = "production" | "staging" | "development";
+export type VaultStatus = "connecting" | "connected" | "unreachable";
 
 interface VaultContextType {
   activeEnv: Environment;
@@ -18,6 +19,8 @@ interface VaultContextType {
   envs: Environment[];
   stats: StatsResponse | null;
   loadingStats: boolean;
+  /** Whether the last statistics request reached the vault; drives the connection indicators. */
+  vaultStatus: VaultStatus;
   role: Role;
   refreshRole: () => Promise<void>;
   isWaking: boolean;
@@ -37,6 +40,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const [apps, setApps] = useState<string[]>(DEFAULT_APPS);
   const [stats, setStats] = useState<StatsResponse | null>(null);
   const [loadingStats, setLoadingStats] = useState<boolean>(false);
+  const [vaultStatus, setVaultStatus] = useState<VaultStatus>("connecting");
   const [role, setRole] = useState<Role>("guest");
   const [isWaking, setIsWaking] = useState<boolean>(false);
 
@@ -97,6 +101,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       .then((data) => {
         if (!isMounted) return;
         setStats(data);
+        setVaultStatus("connected");
         if (data.versionCounts) {
           const discovered = Object.keys(data.versionCounts)
             .map((k) => k.split(":")[0])
@@ -107,6 +112,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       })
       .catch((err) => {
         console.warn("Could not load stats for app discovery", err);
+        if (isMounted) setVaultStatus("unreachable");
       })
       .finally(() => {
         if (isMounted) setLoadingStats(false);
@@ -132,6 +138,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         envs: DEFAULT_ENVS,
         stats,
         loadingStats,
+        vaultStatus,
         role,
         refreshRole,
         isWaking,

@@ -111,7 +111,7 @@ export function CommandPalette() {
     { title: "Delta Studio & Diff Engine", href: "/diff", icon: GitCompare, desc: "Compare any two revisions with colorized additions & removals" },
     { title: "GridFS Binary Keystores", href: "/binaries", icon: HardDrive, desc: "Upload and download TLS certs, PEM, and .jks files" },
     { title: "Export Studio", href: "/export", icon: FileCode, desc: "Export live configs into YAML, JSON, or .env format" },
-    { title: "Capped Audit Log Stream", href: "/audit", icon: Radio, desc: "Real-time circular oplog change stream buffer" },
+    { title: "Capped Audit Log Stream", href: "/audit", icon: Radio, desc: "Recent operations from the capped audit collection, refreshed on each change" },
     { title: "Scoped API Key Matrix", href: "/access", icon: KeyRound, desc: "Role-Based Access Control and microservice tokens" },
   ];
 

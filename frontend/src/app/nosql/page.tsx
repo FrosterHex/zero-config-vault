@@ -364,9 +364,17 @@ export default function NoSqlDeepDivePage() {
                       </div>
                       <div className="flex items-center justify-between py-1">
                         <span className="text-slate-400">Engine Validation Status</span>
-                        <span className="flex items-center gap-1 text-emerald-400">
-                          <CheckCircle2 className="h-3.5 w-3.5" /> ACTIVE
-                        </span>
+                        {schemaInfo ? (
+                          schemaInfo.validationEnabled ? (
+                            <span className="flex items-center gap-1 text-emerald-400">
+                              <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" /> ACTIVE
+                            </span>
+                          ) : (
+                            <span className="text-amber-300">NOT ENABLED</span>
+                          )
+                        ) : (
+                          <span className="text-slate-500">—</span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -493,7 +501,7 @@ export default function NoSqlDeepDivePage() {
                       Config Server RS (CSRS)
                     </div>
                     <p className="text-[11px] text-slate-300 font-light leading-relaxed">
-                      3-node Raft consensus holding chunk boundaries, balancer state, and zone assignments. Never receives user queries.
+                      A three-member replica set holding chunk ranges, balancer state and zone assignments. Clients never query it directly.
                     </p>
                   </div>
 

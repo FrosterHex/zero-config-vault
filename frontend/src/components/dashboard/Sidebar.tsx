@@ -19,6 +19,14 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMotionAccessibility } from "@/components/motion/MotionProvider";
+import { useVault } from "@/context/VaultContext";
+import { VAULT_STATUS_DISPLAY } from "./VaultStatusText";
+
+const STATUS_TONE = {
+  ok: { box: "bg-emerald-500/10 border-emerald-500/20", icon: "text-emerald-400", label: "text-emerald-300" },
+  wait: { box: "bg-sky-500/10 border-sky-500/20", icon: "text-sky-400", label: "text-sky-300" },
+  error: { box: "bg-rose-500/10 border-rose-500/20", icon: "text-rose-400", label: "text-rose-300" },
+} as const;
 
 export interface NavItem {
   id: string;
@@ -35,7 +43,7 @@ const navItems: NavItem[] = [
   { id: "binaries", title: "GridFS Binaries", href: "/binaries", icon: HardDrive },
   { id: "export", title: "Export Studio", href: "/export", icon: FileCode },
   { id: "audit", title: "Live Audit Log", href: "/audit", icon: Radio, badge: "LIVE" },
-  { id: "nosql", title: "NoSQL Deep Dive", href: "/nosql", icon: Database, badge: "PRO" },
+  { id: "nosql", title: "NoSQL Deep Dive", href: "/nosql", icon: Database },
   { id: "access", title: "Scoped API Keys", href: "/access", icon: KeyRound },
 ];
 
@@ -43,6 +51,8 @@ export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const pathname = usePathname();
   const { shouldReduceMotion, getAccessibleTransition } = useMotionAccessibility();
+  const { vaultStatus } = useVault();
+  const status = VAULT_STATUS_DISPLAY[vaultStatus];
 
   const sidebarWidth = collapsed ? 76 : 256;
   const springTransition = getAccessibleTransition({
@@ -182,14 +192,18 @@ export function Sidebar() {
       {/* System Status Footer */}
       <div className="border-t border-white/10 p-3 bg-black/20 shrink-0">
         <motion.div
+          role="status"
+          title={`${status.label}: ${status.detail}`}
           whileHover={shouldReduceMotion ? undefined : { scale: 1.02 }}
           transition={getAccessibleTransition({ duration: 0.15 })}
           className={cn(
-            "flex items-center gap-2 rounded-lg p-2 bg-emerald-500/10 border border-emerald-500/20",
+            "flex items-center gap-2 rounded-lg p-2 border",
+            STATUS_TONE[status.tone].box,
             collapsed && "justify-center"
           )}
         >
-          <Database className="h-4 w-4 text-emerald-400 shrink-0" />
+          <Database className={cn("h-4 w-4 shrink-0", STATUS_TONE[status.tone].icon)} aria-hidden="true" />
+          {collapsed && <span className="sr-only">{status.label}</span>}
           <AnimatePresence initial={false}>
             {!collapsed && (
               <motion.div
@@ -199,12 +213,10 @@ export function Sidebar() {
                 transition={getAccessibleTransition({ duration: 0.15 })}
                 className="flex flex-col text-[11px] whitespace-nowrap overflow-hidden"
               >
-                <span className="font-semibold text-emerald-300 font-['Montserrat',sans-serif]">
-                  MongoDB Replica Set
+                <span className={cn("font-semibold font-['Montserrat',sans-serif]", STATUS_TONE[status.tone].label)}>
+                  {status.label}
                 </span>
-                <span className="text-[9px] text-emerald-400/80 font-mono">
-                  Change Streams Active
-                </span>
+                <span className="text-[9px] text-slate-400 font-mono">{status.detail}</span>
               </motion.div>
             )}
           </AnimatePresence>

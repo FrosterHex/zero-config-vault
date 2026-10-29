@@ -37,6 +37,11 @@ describe("isAllowedPath", () => {
     [["config", "."]],
     [["config", "a\\b"]],
     [["config", "a/b"]],
+    [["config", "a?admin=1"]],
+    [["config", "a#frag"]],
+    [["config", "a\nb"]],
+    [["config", "a\u0000b"]],
+    [["config", "a\u007fb"]],
     [["admin"]],
   ])("rejects %j", (segments) => {
     expect(isAllowedPath(segments)).toBe(false);

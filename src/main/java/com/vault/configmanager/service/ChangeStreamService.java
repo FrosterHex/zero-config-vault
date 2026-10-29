@@ -1,13 +1,17 @@
 package com.vault.configmanager.service;
 
+import com.mongodb.MongoCommandException;
 import com.mongodb.client.ChangeStreamIterable;
-import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoChangeStreamCursor;
+import com.mongodb.client.model.Aggregates;
+import com.mongodb.client.model.Filters;
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
-import com.mongodb.client.model.changestream.OperationType;
 import com.vault.configmanager.dto.response.ConfigChangeEvent;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
+import org.bson.BsonDocument;
 import org.bson.Document;
+import org.bson.conversions.Bson;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,28 +22,46 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
+import java.util.function.Consumer;
 
 /**
- * Service managing real-time MongoDB Change Streams (collection.watch()) and
- * active Server-Sent Events (SSE) subscribers.
+ * Service managing real-time MongoDB Change Streams and active Server-Sent Events (SSE) subscribers.
  *
  * Architecture:
- * - Subscribes to the native MongoDB oplog via collection.watch() across replica sets.
- * - Broadcasts live ConfigChangeEvent payloads directly to connected microservices and dashboards.
- * - Gracefully provides dual fallback for standalone development environments via internal event bus.
+ * - The event mode is decided once at startup. On a replica set a database-level change stream over
+ *   inserts into {@code configurations} and {@code binary_configurations} is the single source of live
+ *   events (CHANGE_STREAM mode). Without change stream support the write services broadcast directly
+ *   (FALLBACK mode).
+ * - In CHANGE_STREAM mode the read loop reconnects after any error, resuming from the last resume token.
+ * - Broadcasts live ConfigChangeEvent payloads to connected microservices and dashboards.
  */
 @Service
 public class ChangeStreamService {
 
+    /** Where live events come from. Decided once at startup and never changed. */
+    public enum EventMode { CHANGE_STREAM, FALLBACK }
+
     private static final Logger log = LoggerFactory.getLogger(ChangeStreamService.class);
     private static final long SSE_TIMEOUT_MS = 30 * 60 * 1000L; // 30 minutes
+    private static final String CONFIG_COLLECTION = "configurations";
+    private static final String BINARY_COLLECTION = "binary_configurations";
+    private static final String ROLLBACK_MARKER = "rollback_from_version";
+    private static final int STARTUP_ATTEMPTS = 3;
+    private static final long STARTUP_RETRY_DELAY_MS = 1000L;
+    private static final long INITIAL_BACKOFF_MS = 1000L;
+    private static final long MAX_BACKOFF_MS = 30_000L;
+    private static final List<Bson> PIPELINE = List.of(Aggregates.match(Filters.and(
+            Filters.eq("operationType", "insert"),
+            Filters.in("ns.coll", CONFIG_COLLECTION, BINARY_COLLECTION))));
 
     private final MongoTemplate mongoTemplate;
     private final ConcurrentHashMap<String, CopyOnWriteArrayList<SseEmitter>> scopedEmitters = new ConcurrentHashMap<>();
     private final CopyOnWriteArrayList<SseEmitter> globalEmitters = new CopyOnWriteArrayList<>();
+    private final CopyOnWriteArrayList<Consumer<ConfigChangeEvent>> listeners = new CopyOnWriteArrayList<>();
 
     private final ExecutorService changeStreamExecutor = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "mongo-change-stream-listener");
@@ -47,64 +69,189 @@ public class ChangeStreamService {
         return t;
     });
 
-    private volatile boolean changeStreamActive = false;
+    private volatile EventMode eventMode = EventMode.FALLBACK;
+    private volatile MongoChangeStreamCursor<ChangeStreamDocument<Document>> currentCursor;
+    private volatile BsonDocument resumeToken;
+    private volatile boolean shuttingDown = false;
 
     public ChangeStreamService(@Autowired(required = false) MongoTemplate mongoTemplate) {
         this.mongoTemplate = mongoTemplate;
     }
 
+    /**
+     * Decides the event mode. Opens the change stream synchronously (up to three attempts, one second apart)
+     * so the mode is known before the application serves traffic.
+     */
     @PostConstruct
     public void startChangeStreamListener() {
         if (mongoTemplate == null) {
-            log.info("MongoTemplate not injected; running ChangeStreamService in internal event-bus mode.");
+            eventMode = EventMode.FALLBACK;
+            log.info("MongoTemplate not injected; live events run in FALLBACK mode (services broadcast directly).");
             return;
         }
 
-        changeStreamExecutor.submit(() -> {
+        MongoChangeStreamCursor<ChangeStreamDocument<Document>> cursor = null;
+        for (int attempt = 1; attempt <= STARTUP_ATTEMPTS && cursor == null; attempt++) {
             try {
-                MongoCollection<Document> collection = mongoTemplate.getCollection("configurations");
-                log.info("Attempting connection to MongoDB Change Stream (collection.watch()) on 'configurations'...");
-                ChangeStreamIterable<Document> stream = collection.watch();
-                changeStreamActive = true;
-                log.info("Connected to MongoDB Change Stream oplog successfully. Real-time change events active.");
+                cursor = openCursor(null);
+            } catch (Exception e) {
+                log.warn("Change stream open attempt {}/{} failed ({}: {})",
+                        attempt, STARTUP_ATTEMPTS, e.getClass().getSimpleName(), e.getMessage());
+                if (attempt < STARTUP_ATTEMPTS && !sleepQuietly(STARTUP_RETRY_DELAY_MS)) {
+                    break;
+                }
+            }
+        }
 
-                for (ChangeStreamDocument<Document> change : stream) {
-                    processOplogChange(change);
+        if (cursor == null) {
+            eventMode = EventMode.FALLBACK;
+            log.warn("MongoDB Change Streams unavailable; live events run in FALLBACK mode (services broadcast directly).");
+            return;
+        }
+
+        currentCursor = cursor;
+        resumeToken = cursor.getResumeToken();
+        eventMode = EventMode.CHANGE_STREAM;
+        log.info("Live events run in CHANGE_STREAM mode (database-level watch on {} and {}).",
+                CONFIG_COLLECTION, BINARY_COLLECTION);
+        changeStreamExecutor.submit(this::readLoop);
+    }
+
+    private MongoChangeStreamCursor<ChangeStreamDocument<Document>> openCursor(BsonDocument token) {
+        ChangeStreamIterable<Document> stream = mongoTemplate.getDb().watch(PIPELINE);
+        if (token != null) {
+            stream = stream.resumeAfter(token);
+        }
+        return stream.cursor();
+    }
+
+    /** Reopens after an error: from the resume token when possible, otherwise from now. */
+    private MongoChangeStreamCursor<ChangeStreamDocument<Document>> reopenCursor() {
+        BsonDocument token = resumeToken;
+        if (token != null) {
+            try {
+                return openCursor(token);
+            } catch (MongoCommandException e) {
+                log.warn("Change stream resume token rejected ({}); resuming from now, events in the gap are lost.",
+                        e.getErrorCodeName());
+            }
+        } else {
+            log.warn("No change stream resume token; resuming from now, events in the gap are lost.");
+        }
+        return openCursor(null);
+    }
+
+    /** Reads events until shutdown, reconnecting with exponential backoff after any error. */
+    private void readLoop() {
+        long backoff = INITIAL_BACKOFF_MS;
+        while (!shuttingDown) {
+            MongoChangeStreamCursor<ChangeStreamDocument<Document>> cursor = currentCursor;
+            try {
+                if (cursor == null) {
+                    cursor = reopenCursor();
+                    currentCursor = cursor;
+                    log.info("MongoDB Change Stream reconnected.");
+                }
+                while (!shuttingDown) {
+                    // tryNext waits up to the server's await time, so this loop does not spin.
+                    ChangeStreamDocument<Document> change = cursor.tryNext();
+                    if (change != null) {
+                        processOplogChange(change);
+                    }
+                    BsonDocument token = cursor.getResumeToken();
+                    if (token != null) {
+                        resumeToken = token;
+                    }
+                    backoff = INITIAL_BACKOFF_MS;
                 }
             } catch (Exception e) {
-                changeStreamActive = false;
-                log.warn("MongoDB Change Stream could not be initialized on current instance ({}: {}). " +
-                                "Operating in internal event-bus mode (ideal for single-node standalone dev environments).",
-                        e.getClass().getSimpleName(), e.getMessage());
+                if (shuttingDown) {
+                    break;
+                }
+                log.warn("MongoDB Change Stream interrupted ({}: {}); reconnecting in {} ms.",
+                        e.getClass().getSimpleName(), e.getMessage(), backoff);
+                closeQuietly(cursor);
+                currentCursor = null;
+                if (!sleepQuietly(backoff)) {
+                    break;
+                }
+                backoff = Math.min(backoff * 2, MAX_BACKOFF_MS);
             }
-        });
+        }
+        closeQuietly(currentCursor);
     }
 
     private void processOplogChange(ChangeStreamDocument<Document> change) {
         try {
-            OperationType opType = change.getOperationType();
-            Document fullDoc = change.getFullDocument();
-            if (fullDoc != null) {
-                String app = fullDoc.getString("applicationName");
-                String env = fullDoc.getString("environment");
-                Integer version = fullDoc.getInteger("version", 1);
-                String hash = fullDoc.getString("documentHash");
-
-                ConfigChangeEvent event = new ConfigChangeEvent(
-                        opType != null ? opType.getValue() : "OPLOG_EVENT",
-                        app,
-                        env,
-                        version != null ? version : 1,
-                        hash,
-                        LocalDateTime.now(),
-                        Map.of("source", "MONGODB_OPLOG_CHANGE_STREAM")
-                );
-
-                broadcastChange(event);
+            Document doc = change.getFullDocument();
+            if (doc == null || change.getNamespace() == null) {
+                return;
             }
+            boolean binary = BINARY_COLLECTION.equals(change.getNamespace().getCollectionName());
+            Document markers = doc.get(binary ? "metadata" : "tags", Document.class);
+            boolean rollback = markers != null && markers.containsKey(ROLLBACK_MARKER);
+
+            Map<String, Object> metadata = markers != null ? new HashMap<>(markers) : new HashMap<>();
+            String eventType;
+            if (binary) {
+                metadata.put("isBinary", true);
+                eventType = rollback ? "BINARY_ROLLBACK" : "BINARY_CREATE";
+            } else {
+                eventType = rollback ? "ROLLBACK" : "CREATE";
+            }
+
+            broadcastChange(new ConfigChangeEvent(
+                    eventType,
+                    doc.getString("applicationName"),
+                    doc.getString("environment"),
+                    doc.getInteger("version", 1),
+                    doc.getString("documentHash"),
+                    LocalDateTime.now(),
+                    metadata
+            ));
         } catch (Exception e) {
             log.error("Error processing Change Stream event: {}", e.getMessage(), e);
         }
+    }
+
+    private static void closeQuietly(MongoChangeStreamCursor<?> cursor) {
+        if (cursor != null) {
+            try {
+                cursor.close();
+            } catch (Exception ignored) {
+                // The cursor may already be closed or its connection gone.
+            }
+        }
+    }
+
+    /** Sleeps; returns false when interrupted (shutdown). */
+    private static boolean sleepQuietly(long millis) {
+        try {
+            Thread.sleep(millis);
+            return true;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+    }
+
+    /** Closes the active cursor so the read loop must reconnect. For tests only. */
+    void closeCurrentCursorForTest() {
+        closeQuietly(currentCursor);
+    }
+
+    public EventMode getEventMode() {
+        return eventMode;
+    }
+
+    /** True when the write services must broadcast events themselves, i.e. in FALLBACK mode. */
+    public boolean servicesShouldBroadcast() {
+        return getEventMode() == EventMode.FALLBACK;
+    }
+
+    /** Registers a callback invoked by {@link #broadcastChange} for every event. */
+    public void addListener(Consumer<ConfigChangeEvent> listener) {
+        listeners.add(listener);
     }
 
     /**
@@ -128,7 +275,7 @@ public class ChangeStreamService {
                             "scope", key,
                             "app", app,
                             "env", env,
-                            "changeStreamsActive", changeStreamActive,
+                            "changeStreamsActive", isChangeStreamActive(),
                             "timestamp", LocalDateTime.now().toString()
                     )));
         } catch (IOException e) {
@@ -155,7 +302,7 @@ public class ChangeStreamService {
                     .data(Map.of(
                             "status", "CONNECTED",
                             "scope", "GLOBAL",
-                            "changeStreamsActive", changeStreamActive,
+                            "changeStreamsActive", isChangeStreamActive(),
                             "timestamp", LocalDateTime.now().toString()
                     )));
         } catch (IOException e) {
@@ -169,6 +316,14 @@ public class ChangeStreamService {
      * Broadcasts a configuration change event to matching scoped emitters and all global emitters.
      */
     public void broadcastChange(ConfigChangeEvent event) {
+        for (Consumer<ConfigChangeEvent> listener : listeners) {
+            try {
+                listener.accept(event);
+            } catch (Exception e) {
+                log.warn("Change event listener failed: {}", e.getMessage());
+            }
+        }
+
         String key = buildScopeKey(event.getApplicationName(), event.getEnvironment());
 
         // 1. Broadcast to scoped subscribers
@@ -218,7 +373,7 @@ public class ChangeStreamService {
     }
 
     public boolean isChangeStreamActive() {
-        return changeStreamActive;
+        return eventMode == EventMode.CHANGE_STREAM;
     }
 
     public int getActiveSubscriptionCount() {
@@ -231,6 +386,15 @@ public class ChangeStreamService {
 
     @PreDestroy
     public void shutdown() {
+        shuttingDown = true;
+        closeQuietly(currentCursor);
         changeStreamExecutor.shutdownNow();
+        try {
+            if (!changeStreamExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
+                log.warn("Change stream listener did not stop within 5 s.");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 }

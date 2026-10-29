@@ -247,7 +247,7 @@ public class BinaryConfigService {
     }
 
     private void notifyChangeStream(String eventType, String app, String env, int version, String hash, Map<String, String> metadata) {
-        if (changeStreamService != null) {
+        if (changeStreamService != null && changeStreamService.servicesShouldBroadcast()) {
             try {
                 Map<String, Object> meta = metadata != null ? new HashMap<>(metadata) : new HashMap<>();
                 meta.put("isBinary", true);

@@ -91,6 +91,18 @@ export interface SchemaValidation {
   rawJsonSchema: string;
 }
 
+export interface AuditEntry {
+  id: string;
+  action: string;
+  applicationName: string;
+  environment: string;
+  requestingIp: string;
+  apiKey: string;
+  success: boolean;
+  failureReason: string | null;
+  timestamp: string;
+}
+
 export interface SearchResult {
   applicationName: string;
   environment: string;
@@ -359,6 +371,16 @@ export const vaultApi = {
   // MongoDB Full-Text and Regex Search
   searchConfigs: (query: string) =>
     request<SearchResult[]>(`/config/search?query=${encodeURIComponent(query)}`),
+
+  // Audit log, newest first, limited server-side to the caller's scope
+  getAuditLog: (params: { limit?: number; app?: string; env?: string } = {}) => {
+    const query = new URLSearchParams();
+    if (params.limit !== undefined) query.set("limit", String(params.limit));
+    if (params.app) query.set("app", params.app);
+    if (params.env) query.set("env", params.env);
+    const qs = query.toString();
+    return request<AuditEntry[]>(`/audit${qs ? `?${qs}` : ""}`);
+  },
 
   // Server-Sent Events (SSE) Stream
   subscribeToStream: (

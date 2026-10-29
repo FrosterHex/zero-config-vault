@@ -19,6 +19,8 @@ interface JsonTreeEditorProps {
   onChange?: (val: Record<string, unknown>) => void;
   onSave?: (val: Record<string, unknown>) => void;
   readOnly?: boolean;
+  /** When set, the save button stays visible but disabled, with this text as its explanation. */
+  saveDisabledReason?: string;
 }
 
 export function JsonTreeEditor({
@@ -26,6 +28,7 @@ export function JsonTreeEditor({
   onChange,
   onSave,
   readOnly = false,
+  saveDisabledReason,
 }: JsonTreeEditorProps) {
   const [viewMode, setViewMode] = useState<"tree" | "raw">("tree");
   const [rawText, setRawText] = useState(() => JSON.stringify(initialValue, null, 2));
@@ -199,7 +202,8 @@ export function JsonTreeEditor({
           {!readOnly && onSave && (
             <button
               type="button"
-              disabled={!!parseError}
+              disabled={!!parseError || !!saveDisabledReason}
+              title={saveDisabledReason}
               onClick={() => {
                 try {
                   const val = JSON.parse(rawText);
@@ -208,7 +212,7 @@ export function JsonTreeEditor({
                   // error handled
                 }
               }}
-              className="rounded-md bg-indigo-600 px-3 py-1 text-xs font-semibold text-white hover:bg-indigo-500 transition-colors disabled:opacity-50 shadow-md shadow-indigo-600/20"
+              className="rounded-md bg-indigo-600 px-3 py-1 text-xs font-semibold text-white hover:bg-indigo-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-indigo-600 shadow-md shadow-indigo-600/20"
             >
               Commit New Revision
             </button>

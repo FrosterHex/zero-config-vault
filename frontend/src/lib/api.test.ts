@@ -96,4 +96,16 @@ describe("vault api client", () => {
     fetchMock.mockResolvedValueOnce(json(200, { role: "weird" }));
     await expect(authApi.session()).resolves.toBe("guest");
   });
+  it("builds the audit log URL from only the given filters", async () => {
+    fetchMock.mockImplementation(async () => json(200, []));
+    await vaultApi.getAuditLog();
+    await vaultApi.getAuditLog({ limit: 50 });
+    await vaultApi.getAuditLog({ limit: 10, app: "playground", env: "development" });
+
+    expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual([
+      "/api/vault/audit",
+      "/api/vault/audit?limit=50",
+      "/api/vault/audit?limit=10&app=playground&env=development",
+    ]);
+  });
 });

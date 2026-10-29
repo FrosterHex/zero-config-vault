@@ -19,6 +19,8 @@ interface ConfigDataGridProps {
   onSelectVersion: (version: number) => void;
   onRollback: (version: number) => void;
   onDiffWithLatest: (version: number) => void;
+  /** When set, rollback buttons stay visible but disabled, with this text as their explanation. */
+  rollbackDisabledReason?: string;
 }
 
 export function ConfigDataGrid({
@@ -27,6 +29,7 @@ export function ConfigDataGrid({
   onSelectVersion,
   onRollback,
   onDiffWithLatest,
+  rollbackDisabledReason,
 }: ConfigDataGridProps) {
   const [filterText, setFilterText] = useState("");
 
@@ -204,8 +207,9 @@ export function ConfigDataGrid({
                                   onRollback(v.version);
                                 }
                               }}
-                              title="Rollback to this version (creates new GitOps revision)"
-                              className="rounded p-1 text-amber-400 hover:bg-amber-950/40 hover:text-amber-300 transition-colors"
+                              disabled={!!rollbackDisabledReason}
+                              title={rollbackDisabledReason ?? "Rollback to this version (creates new GitOps revision)"}
+                              className="rounded p-1 text-amber-400 hover:bg-amber-950/40 hover:text-amber-300 transition-colors disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-amber-400"
                             >
                               <RotateCcw className="h-3.5 w-3.5" />
                             </button>

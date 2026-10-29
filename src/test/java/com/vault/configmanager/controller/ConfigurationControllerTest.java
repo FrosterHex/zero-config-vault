@@ -192,6 +192,17 @@ class ConfigurationControllerTest {
     }
 
     @Test
+    void searchByPath_nullValue_returns200WithNull() throws Exception {
+        when(configurationService.searchByPath(eq("app"), eq("prod"), eq("database.nothing"), any(), any()))
+                .thenReturn(null);
+
+        mockMvc.perform(get("/api/v1/vault/config/app/prod/search?path=database.nothing")
+                        .header("X-API-Key", "sk-dev-key-001"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.value").value(org.hamcrest.Matchers.nullValue()));
+    }
+
+    @Test
     void bulkImport_returns200() throws Exception {
         com.vault.configmanager.dto.request.BulkConfigRequest bulkReq =
                 new com.vault.configmanager.dto.request.BulkConfigRequest(List.of(

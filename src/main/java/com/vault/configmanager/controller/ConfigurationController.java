@@ -148,7 +148,10 @@ public class ConfigurationController {
                     ? SecretMaskingUtil.MASKED_PLACEHOLDER
                     : SecretMaskingUtil.maskValue(result);
         }
-        return ResponseEntity.ok(Map.of("path", path, "value", result));
+        Map<String, Object> body = new java.util.LinkedHashMap<>();
+        body.put("path", path);
+        body.put("value", result);
+        return ResponseEntity.ok(body);
     }
 
     /**

@@ -433,6 +433,65 @@ class ConfigurationServiceTest {
     }
 
     @Test
+    void create_placeholderOnSensitiveKeyOutsideSecureSettings_keepsStoredValue() {
+        storeV1(new Document("database", new Document("host", "old").append("password", "real-pw")));
+        ConfigRequest request = new ConfigRequest("app", "prod",
+                Map.of("database", Map.of("host", "new", "password", "********")), Map.of());
+
+        configurationService.createConfiguration(request, "127.0.0.1", "k");
+
+        Document db = savedPayloadDecrypted().get("database", Document.class);
+        assertEquals("real-pw", db.getString("password"));
+        assertEquals("new", db.getString("host"));
+    }
+
+    @Test
+    void create_placeholderOnSensitiveKeyWithNothingStored_isRejected() {
+        storeV1(new Document("database", new Document("host", "old")));
+        ConfigRequest request = new ConfigRequest("app", "prod",
+                Map.of("database", Map.of("password", "********")), Map.of());
+
+        IllegalArgumentException ex = org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> configurationService.createConfiguration(request, "127.0.0.1", "k"));
+        assertTrue(ex.getMessage().contains("database.password"));
+    }
+
+    @Test
+    void searchableText_skipsSensitiveValuesAndNonCanonicalSecureSettings() {
+        Document payload = new Document("host", "db.internal")
+                .append("database", new Document("password", "hunter2"))
+                .append("Secure-Settings", new Document("apiKey", "topsecret-value"));
+        String text = configurationService.buildSearchableContent("app", "prod", payload, Map.of());
+        assertTrue(text.contains("db.internal"));
+        assertFalse(text.contains("hunter2"));
+        assertFalse(text.contains("topsecret-value"));
+    }
+
+    @Test
+    void searchConfigurations_masksSensitiveKeysOutsideSecureSettings() {
+        Document payload = new Document("database", new Document("host", "hunter2-host").append("password", "hunter2"))
+                .append("Secure-Settings", new Document("apiKey", "hunter2-other"));
+        VaultDocument doc = new VaultDocument("app", "prod", 1, "h", payload, Map.of(), java.time.LocalDateTime.now(), null);
+        doc.setSearchableText(configurationService.buildSearchableContent("app", "prod", payload, Map.of()) + " hunter2 password");
+        when(configurationRepository.findAll()).thenReturn(List.of(doc));
+
+        com.vault.configmanager.model.ApiKey all = new com.vault.configmanager.model.ApiKey(
+                "All", "sk-", "hash", List.of("*"), List.of("*"), java.util.Set.of("READ"), null);
+        List<com.vault.configmanager.dto.response.ConfigSearchResult> results =
+                configurationService.searchConfigurations("hunter2", all);
+        assertEquals(1, results.size());
+        String snippets = results.get(0).getMatchingSnippets().toString();
+        assertTrue(snippets.contains("hunter2-host"));
+        assertFalse(snippets.contains("hunter2-other"));
+        assertNull(results.get(0).getMatchingSnippets().get("database.password"));
+        assertFalse(snippets.replace("hunter2-host", "").contains("hunter2"));
+
+        // A match on the key name shows only the placeholder.
+        results = configurationService.searchConfigurations("password", all);
+        assertEquals("********", results.get(0).getMatchingSnippets().get("database.password"));
+    }
+
+    @Test
     void create_placeholdersAtSeveralDepths_resolveToTheirOwnPaths() {
         storeV1(new Document("secure_settings", new Document("token", "t-real"))
                 .append("services", new Document("billing", new Document("secure_settings", new Document("key", "k-real")))));

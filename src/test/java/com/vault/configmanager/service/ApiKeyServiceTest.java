@@ -293,4 +293,26 @@ class ApiKeyServiceTest {
         assertFalse(guest.isActive());
         verify(apiKeyRepository).save(guest);
     }
+
+    @Test
+    void validate_outsideDevMode_refusesWellKnownKeyEvenIfRowIsActive() {
+        ApiKey active = new ApiKey("Dev", "sk-dev-", ApiKeyService.sha256Hex("sk-dev-key-001"),
+                List.of("*"), List.of("*"), Set.of("ADMIN"), null);
+        when(apiKeyRepository.findByHashedSecret(ApiKeyService.sha256Hex("sk-dev-key-001")))
+                .thenReturn(Optional.of(active));
+
+        assertTrue(apiKeyService.validateAndAuthenticate("sk-dev-key-001").isEmpty());
+        verify(apiKeyRepository, never()).findByHashedSecret(anyString());
+    }
+
+    @Test
+    void validate_inDevMode_acceptsWellKnownKey() {
+        org.springframework.test.util.ReflectionTestUtils.setField(apiKeyService, "devMode", true);
+        ApiKey active = new ApiKey("Dev", "sk-dev-", ApiKeyService.sha256Hex("sk-dev-key-001"),
+                List.of("*"), List.of("*"), Set.of("ADMIN"), null);
+        when(apiKeyRepository.findByHashedSecret(ApiKeyService.sha256Hex("sk-dev-key-001")))
+                .thenReturn(Optional.of(active));
+
+        assertTrue(apiKeyService.validateAndAuthenticate("sk-dev-key-001").isPresent());
+    }
 }

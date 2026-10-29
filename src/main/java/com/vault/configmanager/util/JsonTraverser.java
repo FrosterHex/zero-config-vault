@@ -259,6 +259,45 @@ public class JsonTraverser {
         }
     }
 
+    /**
+     * Finds the first value under any secure_settings object that is shaped like the vault's own encrypted
+     * envelope. Clients must submit plain values; accepting an envelope would store attacker-chosen ciphertext.
+     *
+     * @return the dotted path of that value from the payload root, or empty when there is none
+     */
+    public java.util.Optional<String> findEncryptedEnvelopePath(Document payload) {
+        if (payload == null) {
+            return java.util.Optional.empty();
+        }
+        return findEnvelopePath(objectMapper.valueToTree(payload), "", false);
+    }
+
+    private java.util.Optional<String> findEnvelopePath(JsonNode node, String path, boolean insideSecure) {
+        if (node.isObject()) {
+            if (insideSecure && isAlreadyEncrypted(node)) {
+                return java.util.Optional.of(path);
+            }
+            Iterator<Map.Entry<String, JsonNode>> fields = node.fields();
+            while (fields.hasNext()) {
+                Map.Entry<String, JsonNode> field = fields.next();
+                String childPath = path.isEmpty() ? field.getKey() : path + "." + field.getKey();
+                java.util.Optional<String> found = findEnvelopePath(field.getValue(), childPath,
+                        insideSecure || SECURE_SETTINGS_KEY.equals(field.getKey()));
+                if (found.isPresent()) {
+                    return found;
+                }
+            }
+        } else if (node.isArray()) {
+            for (int i = 0; i < node.size(); i++) {
+                java.util.Optional<String> found = findEnvelopePath(node.get(i), path + "[" + i + "]", insideSecure);
+                if (found.isPresent()) {
+                    return found;
+                }
+            }
+        }
+        return java.util.Optional.empty();
+    }
+
     private boolean isAlreadyEncrypted(JsonNode node) {
         if (node != null && node.isObject()) {
             boolean hasIv = node.has(IV_KEY) || node.has("iv");

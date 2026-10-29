@@ -534,7 +534,7 @@ public class ConfigurationService {
             return executeBestEffortBulkImport(bulkRequest, requestingIp, apiKey);
         }
         if (transactionManager == null) {
-            throw new BulkTransactionException("Atomic bulk import requires a replica set (transactions are not available); nothing was written");
+            throw new BulkTransactionException(REPLICA_SET_REQUIRED);
         }
 
         List<ConfigRequest> configs = bulkRequest.getConfigs() != null ? bulkRequest.getConfigs() : List.of();
@@ -553,12 +553,19 @@ public class ConfigurationService {
                         saved.add(doc);
                         results.add(toConfigResponse(doc, jsonTraverser.decryptDocument(doc.getPayload())));
                     } catch (Exception e) {
+                        if (isTransactionUnsupported(e)) {
+                            throw new BulkTransactionException(REPLICA_SET_REQUIRED + ": " + e.getMessage());
+                        }
                         Map<String, Object> err = new LinkedHashMap<>();
                         err.put("index", i);
                         err.put("applicationName", req.getApplicationName());
                         err.put("environment", req.getEnvironment());
                         err.put("error", e.getMessage());
                         errors.add(err);
+                        if (isServerOrDriverError(e)) {
+                            // The server aborted the transaction; later entries would only add follow-on noise.
+                            break;
+                        }
                     }
                 }
                 if (!errors.isEmpty()) {
@@ -569,27 +576,65 @@ public class ConfigurationService {
                 }
             });
         } catch (BulkTransactionException bte) {
-            auditService.log("BULK_IMPORT_ROLLBACK", "bulk", "multi", requestingIp, apiKey, false,
-                    "Atomic bulk transaction rolled back due to " + bte.getErrors().size() + " failure(s)");
+            if (!bte.getErrors().isEmpty()) {
+                auditService.log("BULK_IMPORT_ROLLBACK", "bulk", "multi", requestingIp, apiKey, false,
+                        "Atomic bulk transaction rolled back due to " + bte.getErrors().size() + " failure(s)");
+            }
             throw bte;
         } catch (Exception ex) {
-            log.warn("Atomic bulk transaction failed or unsupported ({}: {}).",
-                    ex.getClass().getSimpleName(), ex.getMessage());
-            throw new BulkTransactionException("Atomic bulk transaction error (atomic import requires a replica set): " + ex.getMessage());
+            log.warn("Atomic bulk transaction failed ({}: {}).", ex.getClass().getSimpleName(), ex.getMessage());
+            if (isTransactionUnsupported(ex)) {
+                throw new BulkTransactionException(REPLICA_SET_REQUIRED + ": " + ex.getMessage());
+            }
+            throw new BulkTransactionException("Atomic bulk transaction error: " + ex.getMessage());
         }
 
-        // Committed: run side effects, retention and eviction once per distinct app/env.
+        // Committed: the batch is durable, so side-effect failures are logged and never fail the import.
         Set<List<String>> refreshed = new LinkedHashSet<>();
         for (VaultDocument doc : saved) {
-            if (refreshed.add(List.of(doc.getApplicationName(), doc.getEnvironment()))) {
-                refreshAfterWrite(doc.getApplicationName(), doc.getEnvironment());
+            try {
+                if (refreshed.add(List.of(doc.getApplicationName(), doc.getEnvironment()))) {
+                    refreshAfterWrite(doc.getApplicationName(), doc.getEnvironment());
+                }
+                announceWrite(doc, requestingIp, apiKey, startTime);
+            } catch (Exception e) {
+                log.warn("Post-commit work failed for app={}, env={}: {}",
+                        doc.getApplicationName(), doc.getEnvironment(), e.getMessage());
             }
         }
-        for (VaultDocument doc : saved) {
-            announceWrite(doc, requestingIp, apiKey, startTime);
+        try {
+            auditService.log("BULK_IMPORT_ATOMIC", "bulk", "multi", requestingIp, apiKey, true, null);
+        } catch (Exception e) {
+            log.warn("Bulk import audit failed: {}", e.getMessage());
         }
-        auditService.log("BULK_IMPORT_ATOMIC", "bulk", "multi", requestingIp, apiKey, true, null);
         return new BulkConfigResponse(configs.size(), saved.size(), 0, results, List.of());
+    }
+
+    private static final String REPLICA_SET_REQUIRED =
+            "Atomic bulk import requires a replica set (transactions are not available); nothing was written";
+
+    /** True when the server rejected the transaction itself, as a standalone mongod does. */
+    private static boolean isTransactionUnsupported(Throwable t) {
+        for (int depth = 0; t != null && depth < 10; depth++, t = t.getCause()) {
+            if (t instanceof com.mongodb.MongoException me && me.getCode() == 20) {
+                return true;
+            }
+            String m = t.getMessage();
+            if (m != null && (m.contains("replica set") || m.contains("Transaction numbers"))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** True for database or driver failures, which abort the server-side transaction; false for validation-type errors. */
+    private static boolean isServerOrDriverError(Throwable t) {
+        for (int depth = 0; t != null && depth < 10; depth++, t = t.getCause()) {
+            if (t instanceof org.springframework.dao.DataAccessException || t instanceof com.mongodb.MongoException) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public BulkConfigResponse bulkImport(BulkConfigRequest bulkRequest, String requestingIp, String apiKey) {

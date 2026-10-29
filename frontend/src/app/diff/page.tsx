@@ -105,7 +105,7 @@ function DiffStudioContent() {
       {/* 3D Cyber Atmosphere Background Elements */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden -z-10 bg-grid-cyber">
         <div className="absolute top-1/4 right-1/4 h-80 w-80 rounded-full bg-cyan-600/15 blur-[130px]" />
-        <div className="absolute top-1/3 left-1/4 h-80 w-80 rounded-full bg-indigo-600/10 blur-[130px]" />
+        <div className="absolute top-1/3 left-1/4 h-80 w-80 rounded-full bg-mint-600/10 blur-[130px]" />
       </div>
 
       {/* Editorial Header */}
@@ -118,10 +118,10 @@ function DiffStudioContent() {
                 Structural Delta Analysis
               </span>
             </div>
-            <h1 className="font-['Cormorant_Garamond',serif] text-4xl md:text-5xl font-bold tracking-tight text-white leading-tight">
+            <h1 className="font-display text-4xl md:text-5xl font-bold tracking-tight text-white leading-tight">
               Colorized Diff Studio
             </h1>
-            <p className="text-xs md:text-sm text-slate-400 max-w-2xl font-['Montserrat',sans-serif] font-light mt-1">
+            <p className="text-xs md:text-sm text-slate-400 max-w-2xl font-sans font-light mt-1">
               Compare any two historical configuration revisions key-by-key. Highlight added,
               removed, and modified keys with cryptographic assurance.
             </p>
@@ -182,7 +182,7 @@ function DiffStudioContent() {
                 value={v1}
                 disabled={versions.length < 2}
                 onChange={(e) => setV1(Number(e.target.value))}
-                className="h-8 rounded-lg border border-indigo-500/30 bg-indigo-950/40 px-3 text-xs font-mono font-bold text-indigo-300 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer disabled:opacity-40"
+                className="h-8 rounded-lg border border-mint-500/30 bg-mint-950/40 px-3 text-xs font-mono font-bold text-mint-300 focus:outline-none focus:ring-1 focus:ring-mint-500 cursor-pointer disabled:opacity-40"
               >
                 {versions.map((ver) => (
                   <option key={ver.version} value={ver.version} className="bg-slate-900 text-white">
@@ -243,17 +243,17 @@ function DiffStudioContent() {
       {/* Main Split Grid or Informative Empty State */}
       <AccessibleFade delay={0.1}>
         {versions.length < 2 ? (
-          <GlassCard3D glowColor="indigo">
+          <GlassCard3D glowColor="mint">
             <div className="p-10 flex flex-col items-center justify-center text-center space-y-4">
-              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-mint-500/10 text-mint-400 border border-mint-500/20">
                 <GitCompare className="h-8 w-8" />
               </div>
               <div className="space-y-1">
-                <h3 className="font-['Montserrat',sans-serif] text-lg font-bold text-white">
+                <h3 className="font-sans text-lg font-bold text-white">
                   Requires At Least 2 Revisions to Diff
                 </h3>
                 <p className="text-xs sm:text-sm text-slate-400 font-mono max-w-md">
-                  Application <span className="text-indigo-400 font-bold">&quot;{selectedApp}&quot;</span> in environment{" "}
+                  Application <span className="text-mint-400 font-bold">&quot;{selectedApp}&quot;</span> in environment{" "}
                   <span className="text-cyan-400 font-bold">&quot;{selectedEnv}&quot;</span> has{" "}
                   <span className="text-emerald-400 font-bold">{versions.length} revision(s)</span>.
                 </p>
@@ -284,11 +284,11 @@ function DiffStudioContent() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-[600px]">
             {/* Left Column: Visual Git Timeline Path in 3D Card */}
             <div className="lg:col-span-4 h-[600px]">
-              <GlassCard3D glowColor="indigo" className="h-full">
+              <GlassCard3D glowColor="mint" className="h-full">
                 <div className="p-4 h-full flex flex-col">
                   <div className="flex items-center gap-2 mb-4 pb-2 border-b border-white/10 shrink-0">
-                    <History className="h-4 w-4 text-indigo-400" />
-                    <h3 className="font-['Montserrat',sans-serif] text-xs font-bold uppercase tracking-wider text-white">
+                    <History className="h-4 w-4 text-mint-400" />
+                    <h3 className="font-sans text-xs font-bold uppercase tracking-wider text-white">
                       Git Timeline Path
                     </h3>
                   </div>

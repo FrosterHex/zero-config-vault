@@ -1,18 +1,12 @@
 import type { Metadata } from "next";
-import { Cormorant_Garamond, Montserrat, JetBrains_Mono } from "next/font/google";
+import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+import { AppProviders } from "@/components/providers/AppProviders";
 
-const cormorantGaramond = Cormorant_Garamond({
-  variable: "--font-cormorant",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  display: "swap",
-});
-
-const montserrat = Montserrat({
-  variable: "--font-montserrat",
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
+  weight: ["400", "500", "600", "700", "800", "900"],
   display: "swap",
 });
 
@@ -29,8 +23,6 @@ export const metadata: Metadata = {
     "Versioned configuration and secret store built on MongoDB, with envelope encryption, change streams and audit logging.",
 };
 
-import { AppProviders } from "@/components/providers/AppProviders";
-
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -38,12 +30,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
-      <body
-        className={`${cormorantGaramond.variable} ${montserrat.variable} ${jetbrainsMono.variable} antialiased bg-[#090D16] text-[#F8FAFC]`}
-      >
-        <AppProviders>
-          {children}
-        </AppProviders>
+      <body className={`${inter.variable} ${jetbrainsMono.variable} antialiased bg-[#04060f] text-[#f3f6ff]`}>
+        <AppProviders>{children}</AppProviders>
       </body>
     </html>
   );

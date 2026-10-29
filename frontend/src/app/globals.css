@@ -1,52 +1,81 @@
 @import "tailwindcss";
 
 @theme {
-  --font-display: var(--font-cormorant), Georgia, serif;
-  --font-sans: var(--font-montserrat), system-ui, sans-serif;
+  --font-display: var(--font-inter), -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-sans: var(--font-inter), -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   --font-mono: var(--font-jetbrains-mono), monospace;
 
-  --color-obsidian: #060913;
-  --color-slate-card: #0c1222;
-  --color-border-subtle: rgba(255, 255, 255, 0.08);
+  /* Mint accent scale: 400 = #5df0a8 (accent), 500 = #2fd38a (accent-2), 950 = #032018 (accent-ink).
+     600/700 are dark enough to carry white text. */
+  --color-mint-50: #ecfff5;
+  --color-mint-100: #d2fde8;
+  --color-mint-200: #a8f9d1;
+  --color-mint-300: #80f5bd;
+  --color-mint-400: #5df0a8;
+  --color-mint-500: #2fd38a;
+  --color-mint-600: #0e7f4f;
+  --color-mint-700: #0b6640;
+  --color-mint-800: #094f33;
+  --color-mint-900: #073d28;
+  --color-mint-950: #032018;
+
+  --color-obsidian: #04060f;
+  --color-slate-card: #0c1226;
+  --color-border-subtle: rgba(150, 175, 230, 0.12);
 }
 
+/* Deep-space palette shared by the dashboard and the landing page */
 :root {
-  --background: #060913;
-  --foreground: #F8FAFC;
-  --card: #0c1222;
-  --card-foreground: #F8FAFC;
-  --primary: #6366F1;
-  --primary-foreground: #FFFFFF;
-  --muted: #1E293B;
-  --muted-foreground: #94A3B8;
-  --accent: #1E293B;
-  --accent-foreground: #F1F5F9;
-  --border: rgba(255, 255, 255, 0.08);
+  --bg: #04060f;
+  --bg-2: #060a18;
+  --ink: #f3f6ff;
+  --muted: #9aa6c4;
+  --muted-2: #6b7796;
+  --line: rgba(150, 175, 230, 0.12);
+  --line-strong: rgba(150, 175, 230, 0.22);
+  --accent: #5df0a8;
+  --accent-2: #2fd38a;
+  --accent-ink: #032018;
+  --glass: rgba(12, 18, 38, 0.55);
+  --glass-2: rgba(16, 24, 48, 0.65);
+  --radius: 18px;
+  --radius-lg: 26px;
+  --shadow: 0 30px 80px -30px rgba(0, 0, 0, 0.75);
 }
 
 body {
-  background-color: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-montserrat), system-ui, sans-serif;
+  background-color: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   min-height: 100vh;
   margin: 0;
   -webkit-font-smoothing: antialiased;
-  background-attachment: fixed;
+  text-rendering: optimizeLegibility;
 }
 
-/* 3D Cyber Perspective Background Grid */
+/* Dashboard backdrop: a static starfield with a soft blue glow (the WebGL planet is landing-page only) */
 .bg-grid-cyber {
-  background-size: 40px 40px;
-  background-image: 
-    linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-color: var(--bg);
+  background-image:
+    radial-gradient(1px 1px at 12% 18%, rgba(207, 224, 255, 0.55), transparent 60%),
+    radial-gradient(1px 1px at 68% 12%, rgba(207, 224, 255, 0.45), transparent 60%),
+    radial-gradient(1.5px 1.5px at 84% 42%, rgba(207, 224, 255, 0.5), transparent 60%),
+    radial-gradient(1px 1px at 33% 66%, rgba(207, 224, 255, 0.4), transparent 60%),
+    radial-gradient(1px 1px at 52% 88%, rgba(207, 224, 255, 0.35), transparent 60%),
+    radial-gradient(1.5px 1.5px at 6% 82%, rgba(207, 224, 255, 0.45), transparent 60%),
+    radial-gradient(1px 1px at 92% 78%, rgba(207, 224, 255, 0.4), transparent 60%),
+    radial-gradient(1px 1px at 44% 30%, rgba(207, 224, 255, 0.3), transparent 60%),
+    radial-gradient(120% 80% at 50% -20%, rgba(58, 108, 255, 0.14), transparent 60%),
+    radial-gradient(80% 60% at 100% 100%, rgba(93, 240, 168, 0.06), transparent 60%);
+  background-size: 420px 420px, 420px 420px, 420px 420px, 420px 420px, 420px 420px, 420px 420px,
+    420px 420px, 420px 420px, 100% 100%, 100% 100%;
 }
 
-/* 3D Holographic Perspective Horizon Floor */
+/* Perspective floor (kept for pages that use it) */
 .horizon-grid {
-  background-image: 
-    linear-gradient(rgba(99, 102, 241, 0.15) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(99, 102, 241, 0.15) 1px, transparent 1px);
+  background-image:
+    linear-gradient(rgba(93, 240, 168, 0.12) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(93, 240, 168, 0.12) 1px, transparent 1px);
   background-size: 50px 50px;
   transform: perspective(600px) rotateX(65deg);
   transform-origin: top center;
@@ -54,13 +83,13 @@ body {
   -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,0) 80%);
 }
 
-/* Ultra Glassmorphism Styles */
+/* Glass surfaces */
 .glass-panel {
-  background: rgba(12, 18, 34, 0.65);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  background: var(--glass);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
 }
 
 .glass-panel-hover {
@@ -68,8 +97,8 @@ body {
 }
 
 .glass-panel-hover:hover {
-  border-color: rgba(99, 102, 241, 0.45);
-  box-shadow: 0 12px 40px -10px rgba(99, 102, 241, 0.25);
+  border-color: var(--line-strong);
+  background: var(--glass-2);
   transform: translateY(-2px);
 }
 
@@ -77,28 +106,30 @@ body {
   background: rgba(255, 255, 255, 0.04);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--line);
 }
 
+/* Primary call to action: the mint pill from the design */
 .glass-button {
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(168, 85, 247, 0.1));
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(129, 140, 248, 0.3);
-  box-shadow: 0 4px 20px -2px rgba(99, 102, 241, 0.25);
-  transition: all 0.2s ease;
+  color: var(--accent-ink) !important;
+  background: linear-gradient(180deg, var(--accent), var(--accent-2));
+  border: 1px solid transparent;
+  box-shadow: 0 10px 30px -8px rgba(93, 240, 168, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  transition: transform 0.18s ease, box-shadow 0.25s ease;
+}
+
+.glass-button svg {
+  color: var(--accent-ink) !important;
 }
 
 .glass-button:hover {
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.35), rgba(168, 85, 247, 0.2));
-  border-color: rgba(165, 180, 252, 0.5);
-  box-shadow: 0 6px 28px 0 rgba(99, 102, 241, 0.4);
-  transform: translateY(-1px);
+  transform: translateY(-2px);
+  box-shadow: 0 16px 38px -8px rgba(93, 240, 168, 0.7);
 }
 
-/* Glowing Neon Accents */
+/* Glowing accents */
 .cyber-glow {
-  box-shadow: 0 0 35px -5px rgba(99, 102, 241, 0.35);
+  box-shadow: 0 0 35px -5px rgba(93, 240, 168, 0.3);
 }
 
 .cyan-glow {
@@ -119,21 +150,21 @@ body {
   animation: shimmer 2.5s infinite;
 }
 
-/* Custom Sleek Scrollbar */
+/* Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(6, 9, 19, 0.8);
+  background: rgba(4, 6, 15, 0.8);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(150, 175, 230, 0.18);
   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(99, 102, 241, 0.4);
+  background: rgba(93, 240, 168, 0.4);
 }

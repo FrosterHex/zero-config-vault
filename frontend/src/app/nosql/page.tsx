@@ -104,7 +104,7 @@ export default function NoSqlDeepDivePage() {
       {/* Background Cyber Atmosphere */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden -z-10 bg-grid-cyber">
         <div className="absolute top-1/4 right-1/4 h-[28rem] w-[28rem] rounded-full bg-cyan-600/10 blur-[130px]" />
-        <div className="absolute bottom-1/3 left-1/4 h-80 w-80 rounded-full bg-indigo-600/15 blur-[120px]" />
+        <div className="absolute bottom-1/3 left-1/4 h-80 w-80 rounded-full bg-mint-600/15 blur-[120px]" />
       </div>
 
       <div className="space-y-6">
@@ -122,10 +122,10 @@ export default function NoSqlDeepDivePage() {
                     NoSQL Course Showcase
                   </span>
                 </div>
-                <h1 className="font-['Cormorant_Garamond',serif] text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
+                <h1 className="font-display text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
                   Advanced NoSQL Internals & Architecture
                 </h1>
-                <p className="mt-1 text-xs sm:text-sm text-slate-300 font-['Montserrat',sans-serif] font-light max-w-2xl">
+                <p className="mt-1 text-xs sm:text-sm text-slate-300 font-sans font-light max-w-2xl">
                   Demonstrating native MongoDB 7.0 engine-level primitives: Native Time-Series collections,
                   $jsonSchema structural governance, and horizontal shard key query routing.
                 </p>
@@ -158,7 +158,7 @@ export default function NoSqlDeepDivePage() {
                 onClick={() => setActiveTab("schema")}
                 className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all ${
                   activeTab === "schema"
-                    ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/30 font-semibold"
+                    ? "bg-mint-600 text-white shadow-lg shadow-mint-600/30 font-semibold"
                     : "text-slate-400 hover:text-white hover:bg-white/5"
                 }`}
               >
@@ -201,17 +201,17 @@ export default function NoSqlDeepDivePage() {
                   </div>
                 </GlassCard3D>
 
-                <GlassCard3D glowColor="indigo">
+                <GlassCard3D glowColor="mint">
                   <div className="p-5 space-y-2">
                     <div className="flex items-center justify-between text-slate-400 text-xs font-mono">
                       <span>Average Latency</span>
-                      <Zap className="h-4 w-4 text-indigo-400" />
+                      <Zap className="h-4 w-4 text-mint-400" />
                     </div>
                     <div className="flex items-baseline gap-2">
                       <span className="text-3xl font-extrabold text-white font-mono">
                         {telemetry?.avgLatencyMs ?? dash}
                       </span>
-                      <span className="text-xs text-indigo-300 font-mono">ms</span>
+                      <span className="text-xs text-mint-300 font-mono">ms</span>
                     </div>
                     <div className="text-[10px] font-mono text-slate-500">
                       p95 Latency: {telemetry?.p95LatencyMs ?? dash} ms
@@ -256,7 +256,7 @@ export default function NoSqlDeepDivePage() {
               <div className="rounded-2xl border border-white/10 bg-[#0B0F19]/80 backdrop-blur-xl p-6 shadow-xl">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
                   <div>
-                    <h3 className="font-['Montserrat',sans-serif] text-base font-bold text-white flex items-center gap-2">
+                    <h3 className="font-sans text-base font-bold text-white flex items-center gap-2">
                       <BarChart2 className="h-4 w-4 text-cyan-400" />
                       Live Request Throughput Timeline (Aggregated Buckets)
                     </h3>
@@ -335,18 +335,18 @@ export default function NoSqlDeepDivePage() {
                 {/* Schema Metadata */}
                 <div className="lg:col-span-5 space-y-4">
                   <div className="rounded-2xl border border-white/10 bg-[#0B0F19]/80 backdrop-blur-xl p-6 shadow-xl space-y-4">
-                    <div className="flex items-center gap-2 text-indigo-400 font-mono text-xs font-bold uppercase tracking-wider">
+                    <div className="flex items-center gap-2 text-mint-400 font-mono text-xs font-bold uppercase tracking-wider">
                       <ShieldCheck className="h-4 w-4" />
                       MongoDB Database-Level Governance
                     </div>
 
-                    <h3 className="font-['Montserrat',sans-serif] text-lg font-bold text-white">
+                    <h3 className="font-sans text-lg font-bold text-white">
                       Strict $jsonSchema Enforcement
                     </h3>
                     <p className="text-xs text-slate-300 leading-relaxed font-light">
                       Unlike standard Spring Boot validation which only executes in the application layer,
                       Zero-Config Vault programs MongoDB&apos;s internal BSON engine to reject unauthorized
-                      inserts directly via <code className="text-indigo-400 font-mono">DocumentValidationFailure (Error 121)</code>.
+                      inserts directly via <code className="text-mint-400 font-mono">DocumentValidationFailure (Error 121)</code>.
                     </p>
 
                     <div className="space-y-2 pt-2 border-t border-white/10 text-xs font-mono">
@@ -386,7 +386,7 @@ export default function NoSqlDeepDivePage() {
                     </div>
                     <div className="flex flex-wrap gap-1.5 font-mono text-xs">
                       {["applicationName", "environment", "version", "documentHash", "payload", "createdAt"].map((f) => (
-                        <span key={f} className="rounded bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 px-2 py-0.5 text-[11px]">
+                        <span key={f} className="rounded bg-mint-500/15 border border-mint-500/30 text-mint-300 px-2 py-0.5 text-[11px]">
                           {f}
                         </span>
                       ))}
@@ -470,7 +470,7 @@ export default function NoSqlDeepDivePage() {
                     <span className="text-[10px] font-mono text-purple-400 uppercase tracking-wider font-bold">
                       Horizontal Partitioning Strategy
                     </span>
-                    <h3 className="font-['Montserrat',sans-serif] text-xl font-bold text-white mt-1">
+                    <h3 className="font-sans text-xl font-bold text-white mt-1">
                       Compound Hashed Shard Key & Zone Isolation
                     </h3>
                   </div>
@@ -520,7 +520,7 @@ export default function NoSqlDeepDivePage() {
               {/* Interactive Shard Key Routing Simulator */}
               <div className="rounded-2xl border border-purple-500/30 bg-[#0B0F19]/90 backdrop-blur-xl p-6 shadow-2xl space-y-6">
                 <div>
-                  <h3 className="font-['Montserrat',sans-serif] text-lg font-bold text-white flex items-center gap-2">
+                  <h3 className="font-sans text-lg font-bold text-white flex items-center gap-2">
                     <Terminal className="h-5 w-5 text-purple-400" />
                     Interactive Query Routing Simulator
                   </h3>

@@ -14,7 +14,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Database,
-  Lock,
   Radio,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -37,7 +36,7 @@ export interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { id: "dashboard", title: "Overview", href: "/", icon: LayoutDashboard },
+  { id: "dashboard", title: "Overview", href: "/dashboard", icon: LayoutDashboard },
   { id: "configs", title: "Configurations", href: "/configs", icon: Layers },
   { id: "diff", title: "Diff Engine", href: "/diff", icon: GitCompare },
   { id: "binaries", title: "GridFS Binaries", href: "/binaries", icon: HardDrive },
@@ -65,17 +64,18 @@ export function Sidebar() {
     <motion.aside
       animate={{ width: sidebarWidth }}
       transition={springTransition}
-      className="relative flex flex-col h-full border-r border-white/10 bg-[#0B0F19] select-none shrink-0 overflow-hidden"
+      className="relative flex flex-col h-full border-r border-[rgba(150,175,230,0.12)] bg-[#060a18] select-none shrink-0 overflow-hidden"
     >
       {/* Brand Header */}
-      <div className="flex h-16 items-center justify-between px-4 border-b border-white/10 shrink-0">
+      <div className="flex h-16 items-center justify-between px-4 border-b border-[rgba(150,175,230,0.12)] shrink-0">
         <div className="flex items-center gap-3 overflow-hidden">
           <motion.div
             whileHover={shouldReduceMotion ? undefined : { scale: 1.05 }}
             whileTap={shouldReduceMotion ? undefined : { scale: 0.95 }}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo-600/20 text-indigo-400 border border-indigo-500/30"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-mint-400/10 text-mint-400 border border-mint-400/20"
+            aria-hidden="true"
           >
-            <Lock className="h-5 w-5" />
+            <span className="text-sm leading-none -translate-y-px">▲</span>
           </motion.div>
           <AnimatePresence initial={false}>
             {!collapsed && (
@@ -86,11 +86,11 @@ export function Sidebar() {
                 transition={getAccessibleTransition({ duration: 0.15 })}
                 className="flex flex-col whitespace-nowrap overflow-hidden"
               >
-                <span className="font-['Cormorant_Garamond',serif] text-xl font-bold tracking-tight text-white leading-none">
+                <span className="text-[15px] font-extrabold tracking-[0.12em] text-white leading-none">
                   Zero-Config
                 </span>
-                <span className="text-[10px] font-mono tracking-widest text-indigo-400 font-semibold uppercase mt-0.5">
-                  Vault OS
+                <span className="text-[10px] font-mono tracking-widest text-mint-400 font-semibold uppercase mt-0.5">
+                  Vault
                 </span>
               </motion.div>
             )}
@@ -124,8 +124,7 @@ export function Sidebar() {
 
         {navItems.map((item) => {
           const Icon = item.icon;
-          // /dashboard renders the same overview page as /.
-          const isActive = pathname === item.href || (item.href === "/" && pathname === "/dashboard");
+          const isActive = pathname === item.href;
 
           return (
             <Link
@@ -136,9 +135,9 @@ export function Sidebar() {
               title={collapsed ? item.title : undefined}
               aria-label={collapsed ? item.title : undefined}
               className={cn(
-                "group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs font-medium font-['Montserrat',sans-serif] transition-colors",
+                "group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs font-medium font-sans transition-colors",
                 isActive
-                  ? "text-indigo-300 font-semibold"
+                  ? "text-mint-300 font-semibold"
                   : "text-slate-400 hover:text-slate-200 hover:bg-white/5"
               )}
             >
@@ -146,7 +145,7 @@ export function Sidebar() {
               {isActive && (
                 <motion.div
                   layoutId={shouldReduceMotion ? undefined : "active-nav-pill"}
-                  className="absolute inset-0 rounded-lg bg-indigo-600/15 border border-indigo-500/30"
+                  className="absolute inset-0 rounded-lg bg-mint-600/15 border border-mint-500/30"
                   transition={springTransition}
                 />
               )}
@@ -155,7 +154,7 @@ export function Sidebar() {
                 className={cn(
                   "relative z-10 h-4 w-4 shrink-0 transition-transform",
                   !shouldReduceMotion && "group-hover:scale-110",
-                  isActive ? "text-indigo-400" : "text-slate-400"
+                  isActive ? "text-mint-400" : "text-slate-400"
                 )}
               />
 
@@ -213,7 +212,7 @@ export function Sidebar() {
                 transition={getAccessibleTransition({ duration: 0.15 })}
                 className="flex flex-col text-[11px] whitespace-nowrap overflow-hidden"
               >
-                <span className={cn("font-semibold font-['Montserrat',sans-serif]", STATUS_TONE[status.tone].label)}>
+                <span className={cn("font-semibold font-sans", STATUS_TONE[status.tone].label)}>
                   {status.label}
                 </span>
                 <span className="text-[9px] text-slate-400 font-mono">{status.detail}</span>

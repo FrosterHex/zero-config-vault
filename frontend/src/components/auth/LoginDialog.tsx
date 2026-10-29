@@ -119,27 +119,27 @@ export function LoginDialog({ open, onClose, onSignedIn }: LoginDialogProps) {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 8, scale: 0.98 }}
             transition={{ duration: 0.18, ease: "easeOut" }}
-            className="relative w-full max-w-sm overflow-hidden rounded-2xl border border-white/10 bg-[#0B0F19]/95 shadow-2xl shadow-indigo-950/50"
+            className="relative w-full max-w-sm overflow-hidden rounded-2xl border border-white/10 bg-[#0B0F19]/95 shadow-2xl shadow-mint-950/50"
           >
-            <div className="pointer-events-none absolute -top-16 left-1/2 h-32 w-56 -translate-x-1/2 rounded-full bg-indigo-600/20 blur-3xl" />
+            <div className="pointer-events-none absolute -top-16 left-1/2 h-32 w-56 -translate-x-1/2 rounded-full bg-mint-600/20 blur-3xl" />
 
             <button
               type="button"
               onClick={onClose}
               aria-label="Close sign-in dialog"
               // z-10: the form below is also positioned and comes later in the DOM, so it would cover the button
-              className="absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+              className="absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mint-500"
             >
               <X className="h-4 w-4" />
             </button>
 
             <form onSubmit={handleSubmit} aria-busy={pending} className="relative space-y-5 p-6">
               <div className="space-y-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-indigo-500/30 bg-indigo-500/10 text-indigo-300">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-mint-500/30 bg-mint-500/10 text-mint-300">
                   <Lock className="h-5 w-5" aria-hidden="true" />
                 </div>
                 <div>
-                  <h2 id={titleId} className="font-['Montserrat',sans-serif] text-base font-semibold text-white">
+                  <h2 id={titleId} className="font-sans text-base font-semibold text-white">
                     Admin sign-in
                   </h2>
                   <p id={descriptionId} className="mt-1 text-xs text-slate-400">
@@ -171,7 +171,7 @@ export function LoginDialog({ open, onClose, onSignedIn }: LoginDialogProps) {
                     className={`h-10 w-full rounded-lg border bg-black/40 pl-9 pr-3 font-mono text-sm text-white placeholder-slate-600 transition-colors focus:outline-none focus:ring-2 read-only:opacity-60 ${
                       error
                         ? "border-rose-500/60 focus:border-rose-500 focus:ring-rose-500/40"
-                        : "border-white/10 focus:border-indigo-500 focus:ring-indigo-500/40"
+                        : "border-white/10 focus:border-mint-500 focus:ring-mint-500/40"
                     }`}
                   />
                 </div>
@@ -187,7 +187,7 @@ export function LoginDialog({ open, onClose, onSignedIn }: LoginDialogProps) {
                 <button
                   type="button"
                   onClick={onClose}
-                  className="h-9 rounded-lg border border-white/10 bg-white/5 px-3.5 text-xs font-medium text-slate-300 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                  className="h-9 rounded-lg border border-white/10 bg-white/5 px-3.5 text-xs font-medium text-slate-300 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mint-500"
                 >
                   Cancel
                 </button>
@@ -195,7 +195,7 @@ export function LoginDialog({ open, onClose, onSignedIn }: LoginDialogProps) {
                   type="submit"
                   disabled={!password}
                   aria-disabled={pending || undefined}
-                  className="aria-disabled:cursor-wait aria-disabled:opacity-70 inline-flex h-9 min-w-[96px] items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 text-xs font-semibold text-white shadow-md shadow-indigo-600/25 transition-colors hover:bg-indigo-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0B0F19] disabled:cursor-not-allowed disabled:opacity-50"
+                  className="aria-disabled:cursor-wait aria-disabled:opacity-70 inline-flex h-9 min-w-[96px] items-center justify-center gap-2 rounded-lg bg-mint-600 px-4 text-xs font-semibold text-white shadow-md shadow-mint-600/25 transition-colors hover:bg-mint-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mint-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0B0F19] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {pending ? (
                     <>

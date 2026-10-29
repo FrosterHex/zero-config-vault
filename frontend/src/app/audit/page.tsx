@@ -85,10 +85,10 @@ export default function AuditPage() {
                 MongoDB Capped Collection • 50MB Ring Buffer
               </span>
             </div>
-            <h1 className="font-['Cormorant_Garamond',serif] text-4xl font-bold tracking-tight text-white">
+            <h1 className="font-display text-4xl font-bold tracking-tight text-white">
               Audit Log
             </h1>
-            <p className="text-xs sm:text-sm text-slate-400 font-['Montserrat',sans-serif] font-light mt-1 max-w-2xl">
+            <p className="text-xs sm:text-sm text-slate-400 font-sans font-light mt-1 max-w-2xl">
               Recent operations from an append-only capped collection: entries cannot be deleted one by one, and the
               oldest are discarded once it reaches 50 MB. Secret values are masked before an entry is written.
             </p>
@@ -191,7 +191,7 @@ export default function AuditPage() {
                       )}
                       <span className="font-mono text-xs font-semibold text-white">{entry.applicationName}</span>
                       <span className="text-slate-500 text-xs font-mono">•</span>
-                      <span className="font-mono text-xs text-indigo-400">{entry.environment}</span>
+                      <span className="font-mono text-xs text-mint-400">{entry.environment}</span>
                     </div>
                     {entry.failureReason && (
                       <p className={`font-mono text-xs break-words ${failed ? "text-rose-200/90" : "text-slate-300"}`}>
@@ -203,7 +203,7 @@ export default function AuditPage() {
                   <div className="flex flex-wrap items-center gap-3 text-[11px] font-mono text-slate-400 shrink-0">
                     {entry.apiKey && (
                       <div className="flex items-center gap-1.5 bg-black/40 px-2.5 py-1 rounded border border-white/5">
-                        <KeyRound className="h-3 w-3 text-indigo-400" aria-hidden="true" />
+                        <KeyRound className="h-3 w-3 text-mint-400" aria-hidden="true" />
                         <span>{entry.apiKey}</span>
                       </div>
                     )}

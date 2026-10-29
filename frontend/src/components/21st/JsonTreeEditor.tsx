@@ -216,7 +216,7 @@ export function JsonTreeEditor({
                   // error handled
                 }
               }}
-              className="rounded-md bg-mint-600 px-3 py-1 text-xs font-semibold text-white hover:bg-mint-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-mint-600 shadow-md shadow-mint-600/20"
+              className="rounded-md bg-mint-600 px-3 py-1 text-xs font-semibold text-white hover:bg-mint-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-mint-600 shadow-md shadow-mint-600/20"
             >
               Commit New Revision
             </button>

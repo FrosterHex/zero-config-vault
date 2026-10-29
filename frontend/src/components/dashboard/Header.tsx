@@ -127,7 +127,7 @@ export function Header() {
               type="button"
               onClick={() => setLoginOpen(true)}
               aria-haspopup="dialog"
-              className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-mint-600 px-3 text-xs font-semibold text-white shadow-sm shadow-mint-600/30 transition-colors hover:bg-mint-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mint-400"
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-mint-600 px-3 text-xs font-semibold text-white shadow-sm shadow-mint-600/30 transition-colors hover:bg-mint-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mint-400"
             >
               <LogIn className="h-3.5 w-3.5" aria-hidden="true" />
               <span>Admin login</span>

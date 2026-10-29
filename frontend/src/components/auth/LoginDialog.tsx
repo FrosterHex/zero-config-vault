@@ -195,7 +195,7 @@ export function LoginDialog({ open, onClose, onSignedIn }: LoginDialogProps) {
                   type="submit"
                   disabled={!password}
                   aria-disabled={pending || undefined}
-                  className="aria-disabled:cursor-wait aria-disabled:opacity-70 inline-flex h-9 min-w-[96px] items-center justify-center gap-2 rounded-lg bg-mint-600 px-4 text-xs font-semibold text-white shadow-md shadow-mint-600/25 transition-colors hover:bg-mint-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mint-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0B0F19] disabled:cursor-not-allowed disabled:opacity-50"
+                  className="aria-disabled:cursor-wait aria-disabled:opacity-70 inline-flex h-9 min-w-[96px] items-center justify-center gap-2 rounded-lg bg-mint-600 px-4 text-xs font-semibold text-white shadow-md shadow-mint-600/25 transition-colors hover:bg-mint-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mint-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0B0F19] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {pending ? (
                     <>

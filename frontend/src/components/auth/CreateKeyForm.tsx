@@ -132,7 +132,7 @@ export function CreateKeyForm({ onCreated }: { onCreated: () => void }) {
         <button
           type="submit"
           disabled={pending || roles.length === 0}
-          className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-mint-600 px-3.5 text-xs font-semibold text-white shadow-md shadow-mint-600/20 transition-colors hover:bg-mint-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mint-400 disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-mint-600 px-3.5 text-xs font-semibold text-white shadow-md shadow-mint-600/20 transition-colors hover:bg-mint-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mint-400 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Plus className="h-3.5 w-3.5" aria-hidden="true" />}
           <span>{pending ? "Creating…" : "Create key"}</span>

@@ -170,6 +170,7 @@ class LiveEventsIT extends MongoIntegrationTest {
     void reconnectAfterCursorClosed_noDuplicates() throws Exception {
         String app = uniqueApp("live");
         List<ConfigChangeEvent> events = listen(app);
+        int reconnectsBefore = ChangeStreamServiceTestAccess.reconnectCount(changeStreamService);
         ChangeStreamServiceTestAccess.closeCurrentCursor(changeStreamService);
         ConfigResponse saved = write(app, 1);
 
@@ -179,5 +180,28 @@ class LiveEventsIT extends MongoIntegrationTest {
         List<Integer> versions = new ArrayList<>();
         events.forEach(e -> versions.add(e.getVersion()));
         assertThat(versions).containsExactly(saved.getVersion());
+        assertThat(ChangeStreamServiceTestAccess.reconnectCount(changeStreamService))
+                .as("loop reconnected after the cursor was closed").isGreaterThan(reconnectsBefore);
+    }
+
+    @Test
+    void binaryRollback_oneBinaryRollbackEvent() throws Exception {
+        String app = uniqueApp("live");
+        List<ConfigChangeEvent> events = listen(app);
+        binaryConfigService.uploadBinaryConfig(app, ENV, "cert.pem", "application/x-pem-file",
+                "binary-v1".getBytes(), new HashMap<>(), "127.0.0.1", "test");
+        binaryConfigService.uploadBinaryConfig(app, ENV, "cert.pem", "application/x-pem-file",
+                "binary-v2".getBytes(), new HashMap<>(), "127.0.0.1", "test");
+        binaryConfigService.rollbackBinaryConfig(app, ENV, "cert.pem", 1, "127.0.0.1", "test");
+
+        awaitCount(events, 3, 10_000);
+        Thread.sleep(1_000);
+
+        assertThat(events).hasSize(3);
+        assertThat(events).filteredOn(e -> "BINARY_ROLLBACK".equals(e.getEventType())).hasSize(1);
+        ConfigChangeEvent rollback = events.get(2);
+        assertThat(rollback.getEventType()).isEqualTo("BINARY_ROLLBACK");
+        assertThat(rollback.getVersion()).isEqualTo(3);
+        assertThat(rollback.getMetadata()).containsEntry("isBinary", true);
     }
 }

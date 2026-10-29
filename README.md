@@ -27,8 +27,9 @@
 10. [Frontend Dashboard Architecture](#-frontend-dashboard-architecture)
 11. [Quickstart: Docker Compose](#-quickstart-docker-compose)
 12. [Local Development](#-local-development)
-13. [REST API Catalog](#-rest-api-catalog)
-14. [Automated Verification & Test Harness](#-automated-verification--test-harness)
+13. [Deploying](#-deploying)
+14. [REST API Catalog](#-rest-api-catalog)
+15. [Automated Verification & Test Harness](#-automated-verification--test-harness)
 
 ---
 
@@ -262,6 +263,8 @@ public class CheckoutController {
     private String stripeSecret; // Decrypted automatically by Vault on fetch
 }
 ```
+> **Secrets are masked unless the key has `REVEAL_SECRETS`.** Any API key without the `REVEAL_SECRETS` permission now receives `********` in place of every secret value. A service or microservice key used with this starter therefore needs the `READ` and `REVEAL_SECRETS` roles to receive decrypted `secure_settings`. Without `REVEAL_SECRETS` the application would bind the literal placeholder. Admin keys imply `REVEAL_SECRETS`.
+
 When a revision is committed in the vault, the starter's SSE listener receives the event and triggers Spring's `ContextRefreshedEvent` without restarting the JVM.
 
 ---
@@ -289,8 +292,8 @@ docker compose up --build
 ### Container Endpoints:
 | Service | URL | Credentials / Notes |
 | :--- | :--- | :--- |
-| **Frontend Dashboard** | `http://localhost:3000` | Pre-configured with dev API key |
-| **Backend REST API** | `http://localhost:8080` | `X-API-Key: sk-dev-key-001` |
+| **Frontend Dashboard** | `http://localhost:3000` | Guest by default; admin login password is `admin` (dev only) |
+| **Backend REST API** | `http://localhost:8080` | Dev profile only: `X-API-Key: sk-dev-key-001` (admin). Never works against a production deployment |
 | **Swagger UI Interactive Docs** | `http://localhost:8080/swagger-ui.html` | Interactive REST testing |
 | **OpenAPI Specification** | `http://localhost:8080/v3/api-docs` | Machine-readable API schema |
 | **MongoDB Replica Set** | `localhost:27017` | Database: `secure_config_vault` (rs0) |
@@ -319,12 +322,57 @@ mvn test
 ```
 
 ### 3. Build and Run Frontend
+Run the backend with the `dev` Spring profile (`--spring.profiles.active=dev`). That profile seeds the well-known development keys; outside it they are refused. The dashboard talks to the backend only through its server-side proxy, so the browser never sees an API key and no `NEXT_PUBLIC_VAULT_*` variable is used. Copy `frontend/.env.example` to `frontend/.env.local`; its defaults match the dev keys:
+
+| Variable (server only) | Local dev value | Purpose |
+| :--- | :--- | :--- |
+| `VAULT_API_URL` | `http://localhost:8080` | Backend base URL |
+| `VAULT_GUEST_READ_KEY` | `sk-dev-guest-read` | Key used for guest reads |
+| `VAULT_GUEST_SANDBOX_KEY` | `sk-dev-guest-sandbox` | Key used for guest writes (playground only) |
+| `VAULT_ADMIN_KEY` | `sk-dev-key-001` | Key used after admin login |
+| `ADMIN_PASSWORD` | `admin` | Admin login password |
+| `SESSION_SECRET` | any 64 hex characters | Signs the session cookie; at least 32 random bytes |
+
 ```bash
 cd frontend
 npm install
 npm run dev
 # Dashboard accessible at http://localhost:3000
 ```
+
+Never run the dev profile against the production database: it would reseed the published development keys as active admin keys.
+
+---
+
+## 🚢 Deploying
+
+The backend runs on Render and the frontend on Vercel. In production the dev profile is off and the well-known development keys are refused.
+
+**Production variables**
+
+| Where | Variable | Notes |
+| :--- | :--- | :--- |
+| Render | `VAULT_MASTER_KEY`, `VAULT_BOOTSTRAP_ADMIN_KEY` | Master key encrypts the data keys; the bootstrap key seeds the first admin key |
+| Vercel (server only) | `VAULT_API_URL` | Render base URL |
+| Vercel (server only) | `VAULT_GUEST_READ_KEY`, `VAULT_GUEST_SANDBOX_KEY`, `VAULT_ADMIN_KEY` | Raw keys created with `POST /keys` |
+| Vercel (server only) | `ADMIN_PASSWORD`, `SESSION_SECRET` | `SESSION_SECRET` is at least 32 random bytes |
+
+**Deployment order**
+
+1. Render: set `VAULT_MASTER_KEY` and `VAULT_BOOTSTRAP_ADMIN_KEY`. If the master key differs from the one that encrypted the current Atlas data, wipe the demo collections so the seeder reseeds.
+2. Merge to `main`; Render and Vercel both deploy.
+3. With the bootstrap admin key, create the guest-read, guest-sandbox and admin keys via `POST /keys`.
+4. Vercel: set the server-only variables, delete any `NEXT_PUBLIC_VAULT_*` variables, and redeploy.
+5. Verify: no key appears in the built bundle, and the guest and admin flows work on the live URLs.
+
+The dashboard is unavailable between steps 2 and 4 (a few minutes).
+
+**After deploying**
+
+- Revoke the bootstrap admin key once the three dashboard keys exist.
+- Use a long random `ADMIN_PASSWORD`. The login endpoint is not rate-limited.
+- Never run the dev profile against the production database.
+- Open the site about 2 minutes before a demo so the Render instance is awake; a cold start can take longer than the proxy's 60 second limit.
 
 ---
 

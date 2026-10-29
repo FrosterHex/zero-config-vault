@@ -29,11 +29,12 @@ import { useVault } from "@/context/VaultContext";
 export default function Home() {
   const { stats, loadingStats, triggerRefresh } = useVault();
 
-  const totalApps = stats?.totalApplications ?? 4;
-  const totalEnvs = stats?.totalEnvironments ?? 3;
-  const totalVers = stats?.totalVersions ?? 13;
-  const auditLogs = stats?.totalAuditEntries ?? stats?.auditLogCount ?? 58;
-  const cachedConfigs = stats?.cacheDocumentCount ?? stats?.cachedConfigCount ?? 1;
+  // Show a dash until real numbers arrive, never invented ones.
+  const totalApps = stats?.totalApplications ?? "—";
+  const totalEnvs = stats?.totalEnvironments ?? "—";
+  const totalVers = stats?.totalVersions ?? "—";
+  const auditLogs = stats?.totalAuditEntries ?? stats?.auditLogCount ?? "—";
+  const cachedConfigs = stats?.cacheDocumentCount ?? stats?.cachedConfigCount ?? "—";
 
   return (
     <DashboardShell>

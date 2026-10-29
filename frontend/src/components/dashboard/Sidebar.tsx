@@ -30,7 +30,7 @@ export interface NavItem {
 
 const navItems: NavItem[] = [
   { id: "dashboard", title: "Overview", href: "/", icon: LayoutDashboard },
-  { id: "configs", title: "Configurations", href: "/configs", icon: Layers, badge: "v8" },
+  { id: "configs", title: "Configurations", href: "/configs", icon: Layers },
   { id: "diff", title: "Diff Engine", href: "/diff", icon: GitCompare },
   { id: "binaries", title: "GridFS Binaries", href: "/binaries", icon: HardDrive },
   { id: "export", title: "Export Studio", href: "/export", icon: FileCode },
@@ -87,6 +87,7 @@ export function Sidebar() {
           </AnimatePresence>
         </div>
         <button
+          type="button"
           onClick={() => setCollapsed(!collapsed)}
           className="flex h-6 w-6 items-center justify-center rounded border border-white/10 bg-white/5 text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
@@ -113,12 +114,17 @@ export function Sidebar() {
 
         {navItems.map((item) => {
           const Icon = item.icon;
-          const isActive = pathname === item.href;
+          // /dashboard renders the same overview page as /.
+          const isActive = pathname === item.href || (item.href === "/" && pathname === "/dashboard");
 
           return (
             <Link
               key={item.id}
               href={item.href}
+              aria-current={isActive ? "page" : undefined}
+              // When collapsed only the icon is visible, so the title becomes the link's name and tooltip.
+              title={collapsed ? item.title : undefined}
+              aria-label={collapsed ? item.title : undefined}
               className={cn(
                 "group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs font-medium font-['Montserrat',sans-serif] transition-colors",
                 isActive

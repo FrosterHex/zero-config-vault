@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import { vaultApi, authApi, onWakingChange, StatsResponse, Role } from "@/lib/api";
 
 export type Environment = "production" | "staging" | "development";
@@ -149,4 +149,56 @@ export function useVault() {
     throw new Error("useVault must be used within a VaultProvider");
   }
   return context;
+}
+
+export function isEnvironment(value: string | null | undefined): value is Environment {
+  return !!value && (DEFAULT_ENVS as string[]).includes(value);
+}
+
+/**
+ * The app/environment a page works on. A link's ?app=&env= (search results, "diff with latest")
+ * takes precedence and becomes the global selection; afterwards the page follows changes to the
+ * global selection, such as the header's environment switcher.
+ */
+export function useSelectedScope(urlApp: string | null, urlEnv: string | null) {
+  const { activeApp, setActiveApp, activeEnv, setActiveEnv } = useVault();
+  const initialEnv = isEnvironment(urlEnv) ? urlEnv : null;
+  const [selectedApp, setSelectedApp] = useState(() => urlApp || activeApp);
+  const [selectedEnv, setSelectedEnv] = useState<Environment>(() => initialEnv || activeEnv);
+
+  useEffect(() => {
+    if (urlApp) setActiveApp(urlApp);
+    if (initialEnv) setActiveEnv(initialEnv);
+    // Applied once on arrival; later URL changes come with a remount of the page.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Compare with the last seen value rather than skipping the first run, so React's
+  // double-invoked effects in development cannot overwrite the URL's scope.
+  const lastActiveApp = useRef(activeApp);
+  useEffect(() => {
+    if (activeApp !== lastActiveApp.current) {
+      lastActiveApp.current = activeApp;
+      setSelectedApp(activeApp);
+    }
+  }, [activeApp]);
+
+  const lastActiveEnv = useRef(activeEnv);
+  useEffect(() => {
+    if (activeEnv !== lastActiveEnv.current) {
+      lastActiveEnv.current = activeEnv;
+      setSelectedEnv(activeEnv);
+    }
+  }, [activeEnv]);
+
+  const selectApp = (app: string) => {
+    setSelectedApp(app);
+    setActiveApp(app);
+  };
+  const selectEnv = (env: Environment) => {
+    setSelectedEnv(env);
+    setActiveEnv(env);
+  };
+
+  return { selectedApp, selectedEnv, selectApp, selectEnv };
 }

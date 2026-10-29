@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, Suspense } from "react";
+import React, { useState, useEffect, useCallback, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
@@ -8,7 +8,7 @@ import { AccessibleFade } from "@/components/motion/AccessibleMotion";
 import { GlassCard3D } from "@/components/ui/GlassCard3D";
 import { DiffViewer } from "@/components/diff-viewer";
 import { RevisionTimeline } from "@/components/timeline";
-import { useVault, Environment } from "@/context/VaultContext";
+import { useVault, useSelectedScope, Environment } from "@/context/VaultContext";
 import { vaultApi, DiffResponse, VersionSummary } from "@/lib/api";
 import {
   ArrowLeftRight,
@@ -21,79 +21,66 @@ import {
 
 function DiffStudioContent() {
   const searchParams = useSearchParams();
-  const { activeEnv, setActiveEnv, activeApp, setActiveApp, refreshKey, apps, envs } = useVault();
+  const { refreshKey, apps, envs } = useVault();
+  const { selectedApp, selectedEnv, selectApp, selectEnv } = useSelectedScope(
+    searchParams.get("app"),
+    searchParams.get("env")
+  );
 
-  const [selectedApp, setSelectedApp] = useState(() => searchParams.get("app") || activeApp);
-  const [selectedEnv, setSelectedEnv] = useState<Environment>(() => (searchParams.get("env") as Environment) || activeEnv);
-
-  const [v1, setV1] = useState<number>(() => {
-    const p1 = searchParams.get("v1");
-    return p1 ? parseInt(p1, 10) : 1;
-  });
-
-  const [v2, setV2] = useState<number>(() => {
-    const p2 = searchParams.get("v2");
-    return p2 ? parseInt(p2, 10) : 2;
-  });
+  const [v1, setV1] = useState<number>(() => Number(searchParams.get("v1")) || 0);
+  const [v2, setV2] = useState<number>(() => Number(searchParams.get("v2")) || 0);
 
   const [versions, setVersions] = useState<VersionSummary[]>([]);
   const [diffData, setDiffData] = useState<DiffResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Sync with global context
-  useEffect(() => {
-    if (activeApp && activeApp !== selectedApp) {
-      setSelectedApp(activeApp);
-    }
-  }, [activeApp]);
-
-  useEffect(() => {
-    if (activeEnv && activeEnv !== selectedEnv) {
-      setSelectedEnv(activeEnv);
-    }
-  }, [activeEnv]);
-
-  // Load versions
+  // Load versions. Within the same app/env, keep the chosen pair (for example v1/v2 from
+  // "diff with latest") while both still exist; otherwise default to the two newest versions.
+  const pairScope = useRef(`${selectedApp}/${selectedEnv}`);
   const loadVersions = useCallback(async () => {
     setError(null);
+    const scope = `${selectedApp}/${selectedEnv}`;
+    const sameScope = scope === pairScope.current;
+    pairScope.current = scope;
     try {
       const list = await vaultApi.listVersions(selectedApp, selectedEnv);
       setVersions(list);
+      const keep = (v: number) => sameScope && list.some((ver) => ver.version === v);
       if (list.length >= 2) {
-        setV2(list[0].version);
-        setV1(list[1].version);
-      } else if (list.length === 1) {
-        setV2(list[0].version);
-        setV1(list[0].version);
+        setV2((cur) => (keep(cur) ? cur : list[0].version));
+        setV1((cur) => (keep(cur) ? cur : list[1].version));
       } else {
         setDiffData(null);
       }
       return list;
-    } catch {
+    } catch (e: unknown) {
       setVersions([]);
       setDiffData(null);
+      setError(`Could not load versions: ${e instanceof Error ? e.message : "unknown error"}`);
       return [];
     }
   }, [selectedApp, selectedEnv]);
 
-  // Load diff
+  // Load diff; only the newest request may update the page.
+  const diffSeq = useRef(0);
   const loadDiff = useCallback(async () => {
     if (!v1 || !v2 || versions.length < 2) {
       setDiffData(null);
       return;
     }
+    const seq = ++diffSeq.current;
     setLoading(true);
     setError(null);
     try {
       const data = await vaultApi.diffVersions(selectedApp, selectedEnv, v1, v2);
-      setDiffData(data);
+      if (seq === diffSeq.current) setDiffData(data);
     } catch (e: unknown) {
-      const err = e as Error;
-      setError(err.message);
+      if (seq !== diffSeq.current) return;
+      setError(e instanceof Error ? e.message : "Could not compute the diff");
       setDiffData(null);
     } finally {
-      setLoading(false);
+      if (seq === diffSeq.current) setLoading(false);
     }
   }, [selectedApp, selectedEnv, v1, v2, versions.length]);
 
@@ -146,10 +133,7 @@ function DiffStudioContent() {
               <span className="text-slate-400 font-mono text-[11px]">App:</span>
               <select
                 value={selectedApp}
-                onChange={(e) => {
-                  setSelectedApp(e.target.value);
-                  setActiveApp(e.target.value);
-                }}
+                onChange={(e) => selectApp(e.target.value)}
                 className="bg-transparent font-mono text-white text-xs font-semibold focus:outline-none cursor-pointer"
               >
                 {apps.map((a) => (
@@ -164,11 +148,7 @@ function DiffStudioContent() {
               <span className="text-slate-400 font-mono text-[11px]">Env:</span>
               <select
                 value={selectedEnv}
-                onChange={(e) => {
-                  const env = e.target.value as Environment;
-                  setSelectedEnv(env);
-                  setActiveEnv(env);
-                }}
+                onChange={(e) => selectEnv(e.target.value as Environment)}
                 className="bg-transparent font-mono text-white text-xs font-semibold focus:outline-none cursor-pointer"
               >
                 {envs.map((env) => (
@@ -290,8 +270,8 @@ function DiffStudioContent() {
                   type="button"
                   onClick={() => {
                     // Switch to an app with multiple revisions
-                    setSelectedApp("payment-gateway");
-                    setSelectedEnv("production");
+                    selectApp("payment-gateway");
+                    selectEnv("production");
                   }}
                   className="rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 px-4 py-2 text-xs font-mono text-slate-300 transition-colors"
                 >
@@ -336,6 +316,11 @@ function DiffStudioContent() {
                     appName={selectedApp}
                     env={selectedEnv}
                   />
+                ) : error ? (
+                  <div className="flex flex-col items-center justify-center h-full text-center p-8 space-y-3 font-mono text-xs text-rose-300">
+                    <FileCheck2 className="h-8 w-8 text-rose-400" />
+                    <p>Could not compare v{v1} and v{v2}. See the error above.</p>
+                  </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center h-full text-center p-8 space-y-3 font-mono text-xs text-slate-400">
                     <FileCheck2 className="h-8 w-8 text-cyan-400 animate-pulse" />

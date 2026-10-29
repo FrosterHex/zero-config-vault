@@ -127,7 +127,8 @@ export function LoginDialog({ open, onClose, onSignedIn }: LoginDialogProps) {
               type="button"
               onClick={onClose}
               aria-label="Close sign-in dialog"
-              className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+              // z-10: the form below is also positioned and comes later in the DOM, so it would cover the button
+              className="absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
             >
               <X className="h-4 w-4" />
             </button>

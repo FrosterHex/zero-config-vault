@@ -13,6 +13,7 @@ import {
   RotateCcw,
   Sparkles,
 } from "lucide-react";
+import { subtreeMatches } from "@/lib/tree-search";
 
 interface JsonTreeEditorProps {
   initialValue: Record<string, unknown>;
@@ -190,7 +191,10 @@ export function JsonTreeEditor({
               </button>
               <button
                 type="button"
-                onClick={() => setRawText(JSON.stringify(initialValue, null, 2))}
+                onClick={() => {
+                  setRawText(JSON.stringify(initialValue, null, 2));
+                  setParseError(null);
+                }}
                 className="inline-flex items-center gap-1.5 rounded-md border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-mono text-slate-300 hover:bg-white/10 hover:text-white transition-colors"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
@@ -287,18 +291,13 @@ function TreeNode({
   const isArray = Array.isArray(value);
   const isContainer = isObject || isArray;
 
-  const isExpanded = expandedPaths.has(path);
+  // While filtering, open every branch that leads to a match, so nested matches are visible.
+  const isExpanded = searchQuery ? true : expandedPaths.has(path);
   const isSecure = nodeKey === "secure_settings" || isParentSecure;
 
-  const matchesSearch = useMemo(() => {
-    if (!searchQuery) return true;
-    const q = searchQuery.toLowerCase();
-    if (nodeKey.toLowerCase().includes(q)) return true;
-    if (!isContainer && String(value).toLowerCase().includes(q)) return true;
-    return false;
-  }, [nodeKey, value, isContainer, searchQuery]);
+  const matchesSearch = useMemo(() => subtreeMatches(nodeKey, value, searchQuery), [nodeKey, value, searchQuery]);
 
-  if (!matchesSearch && !isContainer) {
+  if (!matchesSearch && depth > 0) {
     return null;
   }
 
@@ -403,7 +402,8 @@ function TreeNode({
               depth={depth + 1}
               expandedPaths={expandedPaths}
               togglePath={togglePath}
-              searchQuery={searchQuery}
+              // A key that matches itself shows its whole branch, not only the matching children.
+              searchQuery={searchQuery && nodeKey.toLowerCase().includes(searchQuery.toLowerCase()) ? "" : searchQuery}
               copiedPath={copiedPath}
               handleCopyPath={handleCopyPath}
               isParentSecure={isSecure}

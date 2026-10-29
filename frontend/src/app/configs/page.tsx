@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, Suspense } from "react";
+import React, { useState, useEffect, useCallback, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { AccessibleFade } from "@/components/motion/AccessibleMotion";
@@ -9,10 +9,11 @@ import { ConfigDataGrid } from "@/components/configs/ConfigDataGrid";
 import { JsonTreeEditor } from "@/components/21st/JsonTreeEditor";
 import { IntegrityBadge } from "@/components/integrity-badge";
 import { SecretToggle } from "@/components/secret-toggle";
-import { useVault, Environment } from "@/context/VaultContext";
+import { useVault, useSelectedScope, Environment } from "@/context/VaultContext";
 import { GuestWriteNotice, GUEST_WRITE_HINT } from "@/components/auth/GuestWriteNotice";
 import {
   vaultApi,
+  ApiError,
   ConfigResponse,
   VersionSummary,
 } from "@/lib/api";
@@ -24,43 +25,23 @@ import {
   RotateCcw,
 } from "lucide-react";
 
-const DEFAULT_PAYLOAD: Record<string, unknown> = {
-  server: {
-    port: 8443,
-    timeoutMs: 3000,
-    ssl: { enabled: true, protocol: "TLSv1.3" },
-  },
-  payment: {
-    currency: "USD",
-    maxRetryAttempts: 5,
-    rateLimitPerMinute: 2500,
-    gateways: ["stripe", "adyen", "paypal", "apple_pay"],
-  },
-  database: {
-    host: "db-cluster.internal.payment.prod",
-    port: 27017,
-    name: "prod_payments",
-  },
-  secure_settings: {
-    stripe_api_secret: "sec_live_9981248719283719238",
-    webhook_signing_salt: "whsec_7128937128941728934",
-  },
-  tags: { tier: "tier-1", compliance: "PCI-DSS" },
-};
-
 function ConfigsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { activeEnv, setActiveEnv, activeApp, setActiveApp, refreshKey, apps, envs, canWrite } = useVault();
+  const { refreshKey, apps, envs, canWrite, role } = useVault();
+  const { selectedApp, selectedEnv, selectApp, selectEnv } = useSelectedScope(
+    searchParams.get("app"),
+    searchParams.get("env")
+  );
+  // A search result links to one version (?v=); it is shown once, on arrival.
+  const requestedVersion = useRef<number | null>(Number(searchParams.get("v")) || null);
 
-  const [selectedApp, setSelectedApp] = useState(() => searchParams.get("app") || activeApp);
-  const [selectedEnv, setSelectedEnv] = useState<Environment>(() => (searchParams.get("env") as Environment) || activeEnv);
   const [masked, setMasked] = useState(true);
 
   const [versions, setVersions] = useState<VersionSummary[]>([]);
   const [currentConfig, setCurrentConfig] = useState<ConfigResponse | null>(null);
-  const [activeVersion, setActiveVersion] = useState<number>(1);
-  const [editorPayload, setEditorPayload] = useState<Record<string, unknown>>(DEFAULT_PAYLOAD);
+  const [activeVersion, setActiveVersion] = useState<number>(0);
+  const [editorPayload, setEditorPayload] = useState<Record<string, unknown>>({});
 
   const [loading, setLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -69,41 +50,42 @@ function ConfigsContent() {
   const [pathQuery, setPathQuery] = useState("");
   const [pathResult, setPathResult] = useState<string | null>(null);
 
-  // Sync with global context if activeApp / activeEnv changed
-  useEffect(() => {
-    if (activeApp && activeApp !== selectedApp) {
-      setSelectedApp(activeApp);
-    }
-  }, [activeApp]);
+  // Only the newest load may update the page; a slower, older response (from the app or
+  // environment selected a moment ago) is discarded instead of overwriting the current one.
+  const loadSeq = useRef(0);
 
-  useEffect(() => {
-    if (activeEnv && activeEnv !== selectedEnv) {
-      setSelectedEnv(activeEnv);
-    }
-  }, [activeEnv]);
+  // Guests always receive masked secrets, so the reveal toggle only applies to admins.
+  const effectiveMasked = role === "admin" ? masked : true;
 
-  // Fetch active configuration
   const loadConfig = useCallback(
     async (version?: number, overrideMasked?: boolean) => {
-      const isMasked = overrideMasked !== undefined ? overrideMasked : masked;
+      const seq = ++loadSeq.current;
+      const isMasked = overrideMasked !== undefined ? overrideMasked : effectiveMasked;
       setLoading(true);
       try {
-        let resp: ConfigResponse;
-        if (version) {
-          resp = await vaultApi.getConfigByVersion(selectedApp, selectedEnv, version, isMasked);
-        } else {
-          resp = await vaultApi.getLatestConfig(selectedApp, selectedEnv, isMasked);
-        }
+        const resp = version
+          ? await vaultApi.getConfigByVersion(selectedApp, selectedEnv, version, isMasked)
+          : await vaultApi.getLatestConfig(selectedApp, selectedEnv, isMasked);
+        if (seq !== loadSeq.current) return;
         setCurrentConfig(resp);
         setActiveVersion(resp.version);
         setEditorPayload(resp.payload || {});
       } catch (err) {
-        console.warn("Could not load config from vault:", err);
+        if (seq !== loadSeq.current) return;
+        // Never leave the previous app's payload in the editor: committing it would copy it here.
+        setCurrentConfig(null);
+        setActiveVersion(0);
+        setEditorPayload({});
+        setStatusMessage(
+          err instanceof ApiError && err.status === 404
+            ? { type: "error", text: `No configuration stored for ${selectedApp} [${selectedEnv}] yet. Write one in the editor and commit it as v1.` }
+            : { type: "error", text: `Could not load ${selectedApp} [${selectedEnv}]: ${err instanceof Error ? err.message : "unknown error"}` }
+        );
       } finally {
-        setLoading(false);
+        if (seq === loadSeq.current) setLoading(false);
       }
     },
-    [selectedApp, selectedEnv, masked]
+    [selectedApp, selectedEnv, effectiveMasked]
   );
 
   // Fetch versions list
@@ -121,18 +103,25 @@ function ConfigsContent() {
   // Load versions and config whenever app, env, or global refresh changes
   useEffect(() => {
     let isMounted = true;
+    setStatusMessage(null);
+    setPathResult(null);
     fetchVersions().then((list) => {
       if (!isMounted) return;
-      if (list.length > 0) {
+      const requested = requestedVersion.current;
+      requestedVersion.current = null;
+      if (requested && list.some((v) => v.version === requested)) {
+        loadConfig(requested);
+      } else if (list.length > 0) {
         loadConfig(list[0].version);
       } else {
-        // Attempt get latest
         loadConfig();
       }
     });
     return () => {
       isMounted = false;
     };
+    // loadConfig/fetchVersions change with exactly these inputs (plus masking, handled by the toggle).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedApp, selectedEnv, refreshKey]);
 
   // Handle secret toggle
@@ -195,10 +184,8 @@ function ConfigsContent() {
   const writable = canWrite(selectedApp);
 
   const switchToPlayground = () => {
-    setSelectedApp("playground");
-    setActiveApp("playground");
-    setSelectedEnv("development");
-    setActiveEnv("development");
+    selectApp("playground");
+    selectEnv("development");
   };
 
   const handleResetPlayground = () => {
@@ -265,10 +252,7 @@ function ConfigsContent() {
               <span className="text-slate-400 font-mono text-[11px]">App:</span>
               <select
                 value={selectedApp}
-                onChange={(e) => {
-                  setSelectedApp(e.target.value);
-                  setActiveApp(e.target.value);
-                }}
+                onChange={(e) => selectApp(e.target.value)}
                 className="bg-transparent font-mono text-white text-xs font-semibold focus:outline-none cursor-pointer"
               >
                 {apps.map((app) => (
@@ -284,11 +268,7 @@ function ConfigsContent() {
               <span className="text-slate-400 font-mono text-[11px]">Env:</span>
               <select
                 value={selectedEnv}
-                onChange={(e) => {
-                  const env = e.target.value as Environment;
-                  setSelectedEnv(env);
-                  setActiveEnv(env);
-                }}
+                onChange={(e) => selectEnv(e.target.value as Environment)}
                 className="bg-transparent font-mono text-white text-xs font-semibold focus:outline-none cursor-pointer"
               >
                 {envs.map((env) => (
@@ -336,18 +316,26 @@ function ConfigsContent() {
           <div className="flex flex-wrap items-center gap-3">
             {/* Active Version Badge */}
             <div className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-500/30 bg-indigo-950/20 px-2.5 py-1 text-xs font-mono">
-              <span className="text-indigo-400 font-bold">Revision v{activeVersion}</span>
-              <span className="text-slate-500">•</span>
-              <span className="text-slate-400 text-[11px]">
-                {currentConfig ? new Date(currentConfig.createdAt).toLocaleTimeString() : "Live"}
+              <span className="text-indigo-400 font-bold">
+                {activeVersion > 0 ? `Revision v${activeVersion}` : "No revision yet"}
               </span>
+              {currentConfig && (
+                <>
+                  <span className="text-slate-500">•</span>
+                  <span className="text-slate-400 text-[11px]">{new Date(currentConfig.createdAt).toLocaleString()}</span>
+                </>
+              )}
             </div>
 
             {/* Integrity Badge */}
             {currentConfig && <IntegrityBadge hash={currentConfig.documentHash} />}
 
             {/* Secret Masking Toggle (Masked vs Decrypted Plaintext) */}
-            <SecretToggle masked={masked} onToggle={handleToggleMask} />
+            <SecretToggle
+              masked={effectiveMasked}
+              onToggle={handleToggleMask}
+              revealDisabledReason={role === "admin" ? undefined : "Sign in as admin to reveal decrypted secrets"}
+            />
           </div>
 
           {/* Dot-Notation Path Query Form */}
@@ -420,7 +408,9 @@ function ConfigsContent() {
                 onRollback={handleRollback}
                 rollbackDisabledReason={writable ? undefined : GUEST_WRITE_HINT}
                 onDiffWithLatest={(v) => {
-                  router.push(`/diff?app=${selectedApp}&env=${selectedEnv}&v1=${v}&v2=${versions[0]?.version || 1}`);
+                  router.push(
+                    `/diff?app=${encodeURIComponent(selectedApp)}&env=${encodeURIComponent(selectedEnv)}&v1=${v}&v2=${versions[0]?.version || 1}`
+                  );
                 }}
               />
             </GlassCard3D>

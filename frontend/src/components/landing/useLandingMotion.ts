@@ -1,31 +1,26 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import Lenis from "lenis";
 
-/** True when the visitor asked the OS for reduced motion (false during the first server render). */
-export function usePrefersReducedMotion(): boolean {
-  const [reduced, setReduced] = useState(false);
-  useEffect(() => {
-    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
-    setReduced(query.matches);
-    const onChange = () => setReduced(query.matches);
-    query.addEventListener("change", onChange);
-    return () => query.removeEventListener("change", onChange);
-  }, []);
-  return reduced;
+/**
+ * Read inside effects (not as React state): state would start as false during the first render, so
+ * reduced-motion visitors would get Lenis and the planet entrance started and then torn down again.
+ */
+export function prefersReducedMotion(): boolean {
+  return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
 /**
  * Staggered scroll reveal: adds `.in` to each `[data-reveal]` inside `root` once it scrolls into view.
  * Under reduced motion every element is shown immediately.
  */
-export function useReveal(root: React.RefObject<HTMLElement | null>, reducedMotion: boolean, deps: unknown[] = []) {
+export function useReveal(root: React.RefObject<HTMLElement | null>, deps: unknown[] = []) {
   useEffect(() => {
     const el = root.current;
     if (!el) return;
     const targets = Array.from(el.querySelectorAll<HTMLElement>("[data-reveal]:not(.in)"));
-    if (reducedMotion || typeof IntersectionObserver === "undefined") {
+    if (prefersReducedMotion() || typeof IntersectionObserver === "undefined") {
       targets.forEach((t) => t.classList.add("in"));
       return;
     }
@@ -43,14 +38,14 @@ export function useReveal(root: React.RefObject<HTMLElement | null>, reducedMoti
     targets.forEach((t) => observer.observe(t));
     return () => observer.disconnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [root, reducedMotion, ...deps]);
+  }, [root, ...deps]);
 }
 
-/** Lenis smooth scrolling for the landing page only; skipped under reduced motion. */
-export function useLenis(reducedMotion: boolean) {
+/** Lenis smooth scrolling (including in-page anchor links) for the landing page; skipped under reduced motion. */
+export function useLenis() {
   useEffect(() => {
-    if (reducedMotion) return;
-    const lenis = new Lenis({ duration: 1.15, smoothWheel: true, touchMultiplier: 1.5 });
+    if (prefersReducedMotion()) return;
+    const lenis = new Lenis({ duration: 1.15, smoothWheel: true, touchMultiplier: 1.5, anchors: true });
     let frame = requestAnimationFrame(function raf(t) {
       lenis.raf(t);
       frame = requestAnimationFrame(raf);
@@ -59,5 +54,5 @@ export function useLenis(reducedMotion: boolean) {
       cancelAnimationFrame(frame);
       lenis.destroy();
     };
-  }, [reducedMotion]);
+  }, []);
 }

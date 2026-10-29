@@ -27,8 +27,6 @@ type Uniform<T> = { value: T };
  * Framework-free: the React wrapper only creates it, calls start() and dispose().
  */
 export class PlanetScene {
-  failed = false;
-
   private readonly canvas: HTMLCanvasElement;
   private readonly reducedMotion: boolean;
   private renderer?: THREE.WebGLRenderer;
@@ -64,7 +62,16 @@ export class PlanetScene {
   private frame = 0;
   private last = 0;
   private disposed = false;
-  private readonly onResize = () => this.resize();
+  private bufferSize = new THREE.Vector2(1, 1);
+  private lastW = 0;
+  private lastH = 0;
+  // Phones resize the viewport height whenever the address bar shows or hides; reallocating every
+  // render target for that is wasted work, so small height-only changes are ignored (the fixed
+  // canvas stretches by a few percent instead).
+  private readonly onResize = () => {
+    if (window.innerWidth === this.lastW && Math.abs(window.innerHeight - this.lastH) < 160) return;
+    this.resize();
+  };
 
   constructor(canvas: HTMLCanvasElement, opts: { reducedMotion: boolean }) {
     this.canvas = canvas;
@@ -76,7 +83,6 @@ export class PlanetScene {
       this.setup();
     } catch (err) {
       console.warn("Planet scene unavailable (WebGL failed); the page continues without it.", err);
-      this.failed = true;
       return;
     }
     window.addEventListener("resize", this.onResize);
@@ -220,7 +226,7 @@ export class PlanetScene {
   }
 
   private resUniform(): Uniform<THREE.Vector2> {
-    const u = { value: new THREE.Vector2(1, 1) };
+    const u = { value: this.bufferSize.clone() };
     this.resUniforms.push(u);
     return u;
   }
@@ -346,11 +352,13 @@ export class PlanetScene {
 
     const fail = (err: unknown) => {
       if (this.disposed) return;
+      // The stars and background keep rendering; the page itself never depends on the planet.
       console.warn("Planet model could not be loaded; the page continues without it.", err);
-      this.failed = true;
     };
 
     loader.load(ASSETS.lights, (lightsGltf) => {
+      // Left the page meanwhile: skip downloading and decoding the much larger planet model.
+      if (this.disposed) return;
       let nightTex: THREE.Texture | null = null;
       lightsGltf.scene.traverse((o) => {
         const m = o as THREE.Mesh;
@@ -479,7 +487,6 @@ export class PlanetScene {
     });
     const markers = new THREE.Points(markerGeometry, material);
     markers.layers.set(LAYERS.TORUS_SCENE);
-    this.resize(); // the new uRes uniform needs the current size
     mesh.add(markers);
   }
 
@@ -497,7 +504,10 @@ export class PlanetScene {
       composer?.setPixelRatio(dpr);
       composer?.setSize(w, h);
     }
-    for (const u of this.resUniforms) u.value.set(w * dpr, h * dpr);
+    this.lastW = w;
+    this.lastH = h;
+    this.bufferSize.set(w * dpr, h * dpr);
+    for (const u of this.resUniforms) u.value.copy(this.bufferSize);
   }
 
   private tick = (nowMs: number) => {

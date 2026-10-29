@@ -191,6 +191,14 @@ async function errorMessage(response: Response, fallback: string): Promise<strin
   return fallback;
 }
 
+/** An HTTP error from the vault, carrying the status so callers can tell "not found" from a failure. */
+export class ApiError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const headers = new Headers(options.headers || {});
   if (!headers.has("Accept")) {
@@ -202,7 +210,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
   const response = await send(endpoint, { ...options, headers });
   if (!response.ok) {
-    throw new Error(await errorMessage(response, `HTTP Error ${response.status}: ${response.statusText}`));
+    throw new ApiError(await errorMessage(response, `HTTP Error ${response.status}: ${response.statusText}`), response.status);
   }
   return response.json();
 }
@@ -277,7 +285,7 @@ export const vaultApi = {
     const vParam = version ? `&version=${version}` : "";
     const response = await send(`/config/${app}/${env}/export?format=${format}${vParam}`);
     if (!response.ok) {
-      throw new Error(await errorMessage(response, `Export failed: HTTP ${response.status}`));
+      throw new ApiError(await errorMessage(response, `Export failed: HTTP ${response.status}`), response.status);
     }
     return response.text();
   },
@@ -310,7 +318,8 @@ export const vaultApi = {
 
   getBinaryDownloadUrl: (app: string, env: string, filename: string, version?: number) => {
     const vParam = version ? `?version=${version}` : "";
-    return `${BASE_URL}/binaries/${app}/${env}/${filename}${vParam}`;
+    // File names may contain spaces, '#' or '?', which would otherwise break the URL.
+    return `${BASE_URL}/binaries/${app}/${env}/${encodeURIComponent(filename)}${vParam}`;
   },
 
   // Scoped API Key Endpoints
@@ -345,6 +354,11 @@ export const vaultApi = {
     }>(`/keys`, {
       method: "POST",
       body: JSON.stringify(data),
+    }),
+
+  revokeApiKey: (id: string) =>
+    request<unknown>(`/keys/${id}/revoke`, {
+      method: "PATCH",
     }),
 
   deleteApiKey: (id: string) =>

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { useVault } from "@/context/VaultContext";
+import { useVault, Environment } from "@/context/VaultContext";
 import { vaultApi } from "@/lib/api";
 import {
   Search,
@@ -22,7 +22,7 @@ import { SearchResult } from "@/lib/api";
 
 export function CommandPalette() {
   const router = useRouter();
-  const { isSearchOpen, setIsSearchOpen, apps, activeEnv, setActiveApp } = useVault();
+  const { isSearchOpen, setIsSearchOpen, apps, activeApp, activeEnv, setActiveApp, setActiveEnv } = useVault();
   const [query, setQuery] = useState("");
   const [pathResult, setPathResult] = useState<{ path: string; value: string } | null>(null);
   const [searchingPath, setSearchingPath] = useState(false);
@@ -65,9 +65,8 @@ export function CommandPalette() {
     const timer = setTimeout(async () => {
       setSearchingPath(true);
       try {
-        const app = apps[0] || "payment-gateway";
-        const res = await vaultApi.searchByPath(app, activeEnv, query.trim());
-        setPathResult({ path: query.trim(), value: JSON.stringify(res.value) });
+        const res = await vaultApi.searchByPath(activeApp, activeEnv, query.trim());
+        setPathResult({ path: query.trim(), value: JSON.stringify(res.value) ?? "null" });
       } catch {
         setPathResult(null);
       } finally {
@@ -76,7 +75,7 @@ export function CommandPalette() {
     }, 350);
 
     return () => clearTimeout(timer);
-  }, [query, apps, activeEnv]);
+  }, [query, activeApp, activeEnv]);
 
   // Handle MongoDB Full-Text search when query has 2+ characters without dots
   useEffect(() => {
@@ -133,9 +132,35 @@ export function CommandPalette() {
     router.push(`/configs?app=${encodeURIComponent(app)}&env=${encodeURIComponent(activeEnv)}`);
   };
 
+  const handleSelectSearchResult = (sr: SearchResult) => {
+    setActiveApp(sr.applicationName);
+    setActiveEnv(sr.environment as Environment);
+    setIsSearchOpen(false);
+    router.push(
+      `/configs?app=${encodeURIComponent(sr.applicationName)}&env=${encodeURIComponent(sr.environment)}&v=${sr.version}`
+    );
+  };
+
+  // Enter picks the first result in display order, as the footer hint promises.
+  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    if (searchResults.length > 0) handleSelectSearchResult(searchResults[0]);
+    else if (filteredApps.length > 0) handleSelectApp(filteredApps[0]);
+    else if (filteredModules.length > 0) handleSelectModule(filteredModules[0].href);
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-20 px-4 bg-black/70 backdrop-blur-md animate-fadeIn">
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center pt-20 px-4 bg-black/70 backdrop-blur-md animate-fadeIn"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) setIsSearchOpen(false);
+      }}
+    >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Search"
         className="relative w-full max-w-2xl rounded-2xl border border-indigo-500/30 bg-[#0B0F19]/95 p-4 shadow-2xl shadow-indigo-950/50 backdrop-blur-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
@@ -150,12 +175,16 @@ export function CommandPalette() {
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={handleInputKeyDown}
+            aria-label="Search applications, modules or dot paths"
             placeholder="Search applications, modules, or dot paths (e.g. database.host, secrets.stripe_secret)..."
             className="w-full bg-transparent px-3 text-sm text-white placeholder-slate-500 focus:outline-none font-mono"
           />
           {query ? (
             <button
+              type="button"
               onClick={() => setQuery("")}
+              aria-label="Clear search"
               className="text-slate-500 hover:text-white p-1 rounded transition-colors"
             >
               <X className="h-4 w-4" />
@@ -178,7 +207,7 @@ export function CommandPalette() {
                   Dot-Notation Path Traversal
                 </span>
                 <span className="text-[10px] font-mono text-slate-400">
-                  Scope: {apps[0] || "payment-gateway"} [{activeEnv}]
+                  Scope: {activeApp} [{activeEnv}]
                 </span>
               </div>
               {searchingPath ? (
@@ -214,11 +243,8 @@ export function CommandPalette() {
                 {searchResults.map((sr, idx) => (
                   <button
                     key={`${sr.applicationName}-${sr.environment}-${sr.version}-${idx}`}
-                    onClick={() => {
-                      setActiveApp(sr.applicationName);
-                      setIsSearchOpen(false);
-                      router.push(`/configs?app=${encodeURIComponent(sr.applicationName)}&env=${encodeURIComponent(sr.environment)}&v=${sr.version}`);
-                    }}
+                    type="button"
+                    onClick={() => handleSelectSearchResult(sr)}
                     className="w-full rounded-xl border border-cyan-500/20 bg-cyan-950/20 hover:bg-cyan-900/30 p-2.5 text-left transition-all group"
                   >
                     <div className="flex items-center justify-between mb-1">
@@ -311,7 +337,11 @@ export function CommandPalette() {
             </div>
           )}
 
-          {filteredApps.length === 0 && filteredModules.length === 0 && !pathResult && (
+          {filteredApps.length === 0 &&
+            filteredModules.length === 0 &&
+            searchResults.length === 0 &&
+            !searchingText &&
+            !query.includes(".") && (
             <div className="p-8 text-center text-slate-500 font-mono">
               No matching applications, modules, or paths found for &quot;{query}&quot;.
             </div>

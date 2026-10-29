@@ -26,7 +26,8 @@ export function RoleBadge({ role }: { role: Role }) {
         <span className={`relative inline-flex h-1.5 w-1.5 rounded-full ${isAdmin ? "bg-emerald-400" : "bg-amber-400"}`} />
       </span>
       <Icon className="h-3 w-3" aria-hidden="true" />
-      <span>{isAdmin ? "Admin" : "Guest · read-only"}</span>
+      {/* Guests can still write in the playground app, so "read-only" would be wrong. */}
+      <span>{isAdmin ? "Admin" : "Guest"}</span>
     </span>
   );
 }

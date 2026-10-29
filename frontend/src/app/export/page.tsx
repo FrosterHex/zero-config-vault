@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { AccessibleFade } from "@/components/motion/AccessibleMotion";
 import { GlassCard3D } from "@/components/ui/GlassCard3D";
-import { useVault, Environment } from "@/context/VaultContext";
-import { vaultApi } from "@/lib/api";
+import { useVault, useSelectedScope, Environment } from "@/context/VaultContext";
+import { vaultApi, ApiError } from "@/lib/api";
 import {
+  AlertCircle,
   FileCode,
   Download,
   Copy,
@@ -17,40 +18,34 @@ import {
 const FORMATS = ["yaml", "json", "env"];
 
 export default function ExportPage() {
-  const { activeEnv, setActiveEnv, activeApp, setActiveApp, refreshKey, apps, envs } = useVault();
-
-  const [selectedApp, setSelectedApp] = useState(activeApp);
-  const [selectedEnv, setSelectedEnv] = useState<Environment>(activeEnv);
+  const { refreshKey, apps, envs } = useVault();
+  const { selectedApp, selectedEnv, selectApp, selectEnv } = useSelectedScope(null, null);
   const [format, setFormat] = useState("yaml");
   const [exportedText, setExportedText] = useState<string>("");
+  const [exportError, setExportError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
-
-  // Sync with global context
-  useEffect(() => {
-    if (activeApp && activeApp !== selectedApp) {
-      setSelectedApp(activeApp);
-    }
-  }, [activeApp]);
-
-  useEffect(() => {
-    if (activeEnv && activeEnv !== selectedEnv) {
-      setSelectedEnv(activeEnv);
-    }
-  }, [activeEnv]);
+  // Only the newest export may update the page (switching format or app quickly).
+  const exportSeq = useRef(0);
 
   const loadExport = useCallback(async () => {
+    const seq = ++exportSeq.current;
     setLoading(true);
     try {
-      setExportedText(await vaultApi.exportConfig(selectedApp, selectedEnv, format));
-    } catch {
-      setExportedText(`# Zero-Config Vault Configuration Export
-# Application: ${selectedApp}
-# Environment: ${selectedEnv}
-# Format: ${format.toUpperCase()}
-# Status: No active configuration found for this scope. Ingest a configuration in Configuration Studio.`);
+      const text = await vaultApi.exportConfig(selectedApp, selectedEnv, format);
+      if (seq !== exportSeq.current) return;
+      setExportedText(text);
+      setExportError(null);
+    } catch (err) {
+      if (seq !== exportSeq.current) return;
+      setExportedText("");
+      setExportError(
+        err instanceof ApiError && err.status === 404
+          ? `No configuration stored for ${selectedApp} [${selectedEnv}] yet. Create one in the Configuration Studio.`
+          : `Export failed: ${err instanceof Error ? err.message : "unknown error"}`
+      );
     } finally {
-      setLoading(false);
+      if (seq === exportSeq.current) setLoading(false);
     }
   }, [selectedApp, selectedEnv, format]);
 
@@ -59,9 +54,13 @@ export default function ExportPage() {
   }, [loadExport, refreshKey]);
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(exportedText);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    navigator.clipboard.writeText(exportedText).then(
+      () => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      },
+      () => setExportError("Could not copy to the clipboard. Select the text and copy it manually.")
+    );
   };
 
   const handleDownload = () => {
@@ -71,9 +70,14 @@ export default function ExportPage() {
     const a = document.createElement("a");
     a.href = url;
     a.download = `${selectedApp}-${selectedEnv}.${ext}`;
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(url);
+    a.remove();
+    // Revoking immediately can cancel the download in some browsers.
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
+
+  const hasExport = !exportError && exportedText.length > 0;
 
   return (
     <DashboardShell>
@@ -106,10 +110,7 @@ export default function ExportPage() {
               <span className="text-slate-400 font-mono text-[11px]">App:</span>
               <select
                 value={selectedApp}
-                onChange={(e) => {
-                  setSelectedApp(e.target.value);
-                  setActiveApp(e.target.value);
-                }}
+                onChange={(e) => selectApp(e.target.value)}
                 className="bg-transparent font-mono text-white text-xs font-semibold focus:outline-none cursor-pointer"
               >
                 {apps.map((a) => (
@@ -124,11 +125,7 @@ export default function ExportPage() {
               <span className="text-slate-400 font-mono text-[11px]">Env:</span>
               <select
                 value={selectedEnv}
-                onChange={(e) => {
-                  const env = e.target.value as Environment;
-                  setSelectedEnv(env);
-                  setActiveEnv(env);
-                }}
+                onChange={(e) => selectEnv(e.target.value as Environment)}
                 className="bg-transparent font-mono text-purple-400 text-xs font-semibold focus:outline-none cursor-pointer"
               >
                 {envs.map((e) => (
@@ -177,15 +174,19 @@ export default function ExportPage() {
               </div>
               <div className="flex items-center gap-2">
                 <button
+                  type="button"
                   onClick={handleCopy}
-                  className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-mono text-slate-300 hover:text-white hover:bg-white/10 transition-colors"
+                  disabled={!hasExport}
+                  className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-mono text-slate-300 hover:text-white hover:bg-white/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
                   <span>{copied ? "Copied" : "Copy"}</span>
                 </button>
                 <button
+                  type="button"
                   onClick={handleDownload}
-                  className="glass-button flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-white transition-all"
+                  disabled={!hasExport}
+                  className="glass-button flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <Download className="h-3.5 w-3.5" />
                   <span>Download</span>
@@ -193,9 +194,16 @@ export default function ExportPage() {
               </div>
             </div>
 
-            <pre className="overflow-x-auto rounded-xl bg-slate-950/80 p-5 font-mono text-xs text-slate-300 border border-white/5 max-h-[500px] leading-relaxed">
-              <code>{exportedText}</code>
-            </pre>
+            {exportError ? (
+              <div role="alert" className="flex items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-950/40 p-5 font-mono text-xs text-rose-300">
+                <AlertCircle className="h-4 w-4 shrink-0 text-rose-400" aria-hidden="true" />
+                <span>{exportError}</span>
+              </div>
+            ) : (
+              <pre className="overflow-x-auto rounded-xl bg-slate-950/80 p-5 font-mono text-xs text-slate-300 border border-white/5 max-h-[500px] leading-relaxed">
+                <code>{exportedText}</code>
+              </pre>
+            )}
           </div>
         </GlassCard3D>
       </AccessibleFade>

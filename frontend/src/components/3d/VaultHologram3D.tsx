@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { useMotionAccessibility } from "@/components/motion/MotionProvider";
 
@@ -17,7 +17,9 @@ export function VaultHologram3D({
 }: VaultHologram3DProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const { shouldReduceMotion } = useMotionAccessibility();
-  const [isHovered, setIsHovered] = useState(false);
+  // A ref, not state: the animation loop reads it each frame, and a state change would
+  // re-run the effect below, tearing down and rebuilding the WebGL renderer on every hover.
+  const isHoveredRef = useRef(false);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -205,7 +207,7 @@ export function VaultHologram3D({
     const animate = () => {
       animationFrameId = requestAnimationFrame(animate);
       const delta = clock.getDelta();
-      const speedMultiplier = isHovered ? 1.6 : 1.0;
+      const speedMultiplier = isHoveredRef.current ? 1.6 : 1.0;
 
       if (!shouldReduceMotion) {
         // Core auto-rotation
@@ -244,6 +246,8 @@ export function VaultHologram3D({
         container.removeEventListener("mousemove", handleMouseMove);
       }
       renderer.dispose();
+      // dispose() keeps the WebGL context; browsers cap live contexts, so release it explicitly.
+      renderer.forceContextLoss();
       innerGeo.dispose();
       crystalGeo.dispose();
       solidGeo.dispose();
@@ -252,13 +256,13 @@ export function VaultHologram3D({
         container.removeChild(renderer.domElement);
       }
     };
-  }, [interactive, isHovered, shouldReduceMotion, size]);
+  }, [interactive, shouldReduceMotion, size]);
 
   return (
     <div
       ref={containerRef}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      onMouseEnter={() => (isHoveredRef.current = true)}
+      onMouseLeave={() => (isHoveredRef.current = false)}
       className={`relative flex items-center justify-center cursor-grab active:cursor-grabbing ${className}`}
       style={{ width: "100%", height: "100%", minHeight: `${size}px` }}
     >

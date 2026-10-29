@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { AccessibleFade } from "@/components/motion/AccessibleMotion";
 import { GlassCard3D } from "@/components/ui/GlassCard3D";
-import { useVault, Environment } from "@/context/VaultContext";
+import { useVault, useSelectedScope, Environment } from "@/context/VaultContext";
 import { vaultApi } from "@/lib/api";
 import { GuestWriteNotice, GUEST_WRITE_HINT } from "@/components/auth/GuestWriteNotice";
 import {
@@ -34,12 +34,12 @@ interface BinaryItem {
 }
 
 export default function BinariesPage() {
-  const { activeEnv, setActiveEnv, activeApp, setActiveApp, refreshKey, apps, envs, role, canWrite } = useVault();
-
-  const [selectedApp, setSelectedApp] = useState(activeApp);
-  const [selectedEnv, setSelectedEnv] = useState<Environment>(activeEnv);
+  const { refreshKey, apps, envs, role, canWrite } = useVault();
+  const { selectedApp, selectedEnv, selectApp, selectEnv } = useSelectedScope(null, null);
   const [binaries, setBinaries] = useState<BinaryItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const loadSeq = useRef(0);
 
   // Upload State
   const [uploadFile, setUploadFile] = useState<File | null>(null);
@@ -49,29 +49,20 @@ export default function BinariesPage() {
   const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Sync with global context
-  useEffect(() => {
-    if (activeApp && activeApp !== selectedApp) {
-      setSelectedApp(activeApp);
-    }
-  }, [activeApp]);
-
-  useEffect(() => {
-    if (activeEnv && activeEnv !== selectedEnv) {
-      setSelectedEnv(activeEnv);
-    }
-  }, [activeEnv]);
-
   const loadBinaries = useCallback(async () => {
+    const seq = ++loadSeq.current;
     setLoading(true);
     try {
       const data = await vaultApi.listBinaries(selectedApp, selectedEnv);
+      if (seq !== loadSeq.current) return;
       setBinaries(data || []);
+      setLoadError(null);
     } catch (err) {
-      console.warn("Could not load binaries from vault:", err);
+      if (seq !== loadSeq.current) return;
       setBinaries([]);
+      setLoadError(`Could not load files for ${selectedApp} [${selectedEnv}]: ${err instanceof Error ? err.message : "unknown error"}`);
     } finally {
-      setLoading(false);
+      if (seq === loadSeq.current) setLoading(false);
     }
   }, [selectedApp, selectedEnv]);
 
@@ -99,8 +90,7 @@ export default function BinariesPage() {
 
     try {
       const res = await vaultApi.uploadBinary(selectedApp, selectedEnv, uploadFile, {
-        uploadedBy: "console-admin",
-        verified: "true",
+        uploadedBy: role === "admin" ? "console-admin" : "console-guest",
       });
       setUploadSuccess(`Successfully uploaded "${res.filename}" as revision v${res.version} to GridFS!`);
       setUploadFile(null);
@@ -118,10 +108,8 @@ export default function BinariesPage() {
   const isAdmin = role === "admin";
 
   const switchToPlayground = () => {
-    setSelectedApp("playground");
-    setActiveApp("playground");
-    setSelectedEnv("development");
-    setActiveEnv("development");
+    selectApp("playground");
+    selectEnv("development");
   };
 
   const formatBytes = (bytes: number) => {
@@ -163,10 +151,7 @@ export default function BinariesPage() {
               <span className="text-slate-400 font-mono text-[11px]">App:</span>
               <select
                 value={selectedApp}
-                onChange={(e) => {
-                  setSelectedApp(e.target.value);
-                  setActiveApp(e.target.value);
-                }}
+                onChange={(e) => selectApp(e.target.value)}
                 className="bg-transparent font-mono text-white text-xs font-semibold focus:outline-none cursor-pointer"
               >
                 {apps.map((a) => (
@@ -181,11 +166,7 @@ export default function BinariesPage() {
               <span className="text-slate-400 font-mono text-[11px]">Env:</span>
               <select
                 value={selectedEnv}
-                onChange={(e) => {
-                  const env = e.target.value as Environment;
-                  setSelectedEnv(env);
-                  setActiveEnv(env);
-                }}
+                onChange={(e) => selectEnv(e.target.value as Environment)}
                 className="bg-transparent font-mono text-emerald-400 text-xs font-semibold focus:outline-none cursor-pointer"
               >
                 {envs.map((env) => (
@@ -197,7 +178,10 @@ export default function BinariesPage() {
             </div>
 
             <button
+              type="button"
               onClick={loadBinaries}
+              title="Reload files"
+              aria-label="Reload files"
               className="rounded-lg border border-white/10 bg-white/5 p-2 text-slate-400 hover:text-white transition-colors"
             >
               <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin text-emerald-400" : ""}`} />
@@ -320,7 +304,12 @@ export default function BinariesPage() {
 
       {/* GridFS Binaries Content Grid or Empty State */}
       <AccessibleFade delay={0.08}>
-        {binaries.length === 0 ? (
+        {loadError ? (
+          <div role="alert" className="flex items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-950/40 p-4 text-xs font-mono text-rose-300">
+            <AlertCircle className="h-4 w-4 shrink-0 text-rose-400" aria-hidden="true" />
+            <span>{loadError}</span>
+          </div>
+        ) : binaries.length === 0 ? (
           <GlassCard3D glowColor="emerald">
             <div className="p-10 flex flex-col items-center justify-center text-center space-y-3 font-mono text-xs">
               <HardDrive className="h-10 w-10 text-slate-500" />
@@ -332,8 +321,8 @@ export default function BinariesPage() {
               <button
                 type="button"
                 onClick={() => {
-                  setSelectedApp("payment-gateway");
-                  setSelectedEnv("production");
+                  selectApp("payment-gateway");
+                  selectEnv("production");
                 }}
                 className="rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 px-4 py-2 text-xs font-mono text-emerald-300 transition-colors mt-2"
               >

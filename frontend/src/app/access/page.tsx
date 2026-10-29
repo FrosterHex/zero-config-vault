@@ -11,6 +11,7 @@ import { CreateKeyForm } from "@/components/auth/CreateKeyForm";
 import {
   KeyRound,
   ShieldCheck,
+  ShieldOff,
   Copy,
   Check,
   RefreshCw,
@@ -61,9 +62,31 @@ export default function AccessPage() {
   }, [isAdmin, loadKeys]);
 
   const handleCopyPrefix = (id: string, text: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
+    void navigator.clipboard.writeText(text).then(() => {
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 2000);
+    });
+  };
+
+  const [revokingId, setRevokingId] = useState<string | null>(null);
+  const handleRevoke = async (key: KeyItem) => {
+    if (
+      !confirm(
+        `Revoke "${key.name}"? Clients using this key will be refused immediately. ` +
+          "If it is one of the keys this dashboard uses, the dashboard stops working until it is configured with a new key."
+      )
+    )
+      return;
+    setRevokingId(key.id);
+    setError(null);
+    try {
+      await vaultApi.revokeApiKey(key.id);
+      await loadKeys();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not revoke the key");
+    } finally {
+      setRevokingId(null);
+    }
   };
 
   return (
@@ -93,8 +116,10 @@ export default function AccessPage() {
           {isAdmin && (
             <div className="flex items-center gap-3">
               <button
+                type="button"
                 onClick={loadKeys}
                 title="Reload API keys"
+                aria-label="Reload API keys"
                 className="rounded-lg border border-white/10 bg-white/5 p-2 text-slate-400 hover:text-white transition-colors"
               >
                 <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin text-indigo-400" : ""}`} />
@@ -154,7 +179,9 @@ export default function AccessPage() {
                           Prefix: {k.keyPrefix}****
                         </span>
                         <button
+                          type="button"
                           onClick={() => handleCopyPrefix(k.id, k.keyPrefix)}
+                          aria-label={`Copy the prefix of ${k.name}`}
                           className="text-slate-400 hover:text-white transition-colors"
                         >
                           {copiedId === k.id ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
@@ -192,10 +219,27 @@ export default function AccessPage() {
 
                     <div className="flex items-center justify-between pt-2 border-t border-white/5 text-[10px] font-mono text-slate-500">
                       <span>Created: {new Date(k.createdAt).toLocaleDateString()}</span>
-                      <span className="text-emerald-400 flex items-center gap-1">
-                        <ShieldCheck className="h-3 w-3" />
-                        Active
-                      </span>
+                      {k.active ? (
+                        <span className="flex items-center gap-2">
+                          <span className="text-emerald-400 flex items-center gap-1">
+                            <ShieldCheck className="h-3 w-3" aria-hidden="true" />
+                            Active
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => void handleRevoke(k)}
+                            disabled={revokingId === k.id}
+                            className="rounded border border-rose-500/30 bg-rose-500/10 px-2 py-0.5 text-rose-300 transition-colors hover:bg-rose-500/20 hover:text-white disabled:cursor-wait disabled:opacity-50"
+                          >
+                            {revokingId === k.id ? "Revoking…" : "Revoke"}
+                          </button>
+                        </span>
+                      ) : (
+                        <span className="text-rose-400 flex items-center gap-1">
+                          <ShieldOff className="h-3 w-3" aria-hidden="true" />
+                          Revoked
+                        </span>
+                      )}
                     </div>
                   </div>
                 </GlassCard3D>

@@ -19,6 +19,7 @@ import {
   Terminal,
 } from "lucide-react";
 import { vaultApi, TelemetryStats, SchemaValidation } from "@/lib/api";
+import { simulateShardRoute } from "@/lib/shard-sim";
 
 export default function NoSqlDeepDivePage() {
   const [activeTab, setActiveTab] = useState<"telemetry" | "schema" | "sharding">("telemetry");
@@ -85,31 +86,18 @@ export default function NoSqlDeepDivePage() {
     };
   }, [windowMinutes]);
 
-  // Compute Murmur3/MD5 hash simulation for Shard Key
-  const computeShardAssignment = (appName: string, envName: string) => {
-    let hash = 0;
-    for (let i = 0; i < appName.length; i++) {
-      hash = (hash << 5) - hash + appName.charCodeAt(i);
-      hash |= 0;
+  const simResult = simulateShardRoute(simApp, simEnv);
+
+  // The backend returns the validator as a JSON string; never let a malformed one crash the page.
+  const prettySchema = (() => {
+    if (!schemaInfo?.rawJsonSchema) return null;
+    try {
+      return JSON.stringify(JSON.parse(schemaInfo.rawJsonSchema), null, 2);
+    } catch {
+      return schemaInfo.rawJsonSchema;
     }
-    const absHash = Math.abs(hash);
-    const shardId = (absHash % 2) + 1;
-    const chunkMin = (absHash * 1000) % 50000;
-    const chunkMax = chunkMin + 16384;
-    const isProd = envName.toLowerCase() === "production";
-    const zone = isProd ? "ZONE_PROD_TIER1 (NVMe Storage)" : "ZONE_DEV_STAGING (Standard Storage)";
-
-    return {
-      hashHex: "0x" + absHash.toString(16).padStart(8, "0").toUpperCase(),
-      targetShard: `rs-shard-0${shardId}`,
-      chunkRange: `[${chunkMin}, ${chunkMax}]`,
-      zone,
-      routingPlan: "SINGLE_SHARD_TARGETED",
-      scatterGatherAvoided: true,
-    };
-  };
-
-  const simResult = computeShardAssignment(simApp, simEnv);
+  })();
+  const dash = "—";
 
   return (
     <DashboardShell>
@@ -205,7 +193,7 @@ export default function NoSqlDeepDivePage() {
                       <Activity className="h-4 w-4 text-cyan-400" />
                     </div>
                     <div className="text-3xl font-extrabold text-white font-mono">
-                      {telemetry?.totalRequests ?? 120}
+                      {telemetry?.totalRequests ?? dash}
                     </div>
                     <div className="text-[10px] font-mono text-cyan-400/80">
                       Collection: config_access_telemetry
@@ -221,12 +209,12 @@ export default function NoSqlDeepDivePage() {
                     </div>
                     <div className="flex items-baseline gap-2">
                       <span className="text-3xl font-extrabold text-white font-mono">
-                        {telemetry?.avgLatencyMs ?? 4.2}
+                        {telemetry?.avgLatencyMs ?? dash}
                       </span>
                       <span className="text-xs text-indigo-300 font-mono">ms</span>
                     </div>
                     <div className="text-[10px] font-mono text-slate-500">
-                      p95 Latency: {telemetry?.p95LatencyMs ?? 18} ms
+                      p95 Latency: {telemetry?.p95LatencyMs ?? dash} ms
                     </div>
                   </div>
                 </GlassCard3D>
@@ -239,11 +227,11 @@ export default function NoSqlDeepDivePage() {
                     </div>
                     <div className="flex items-baseline gap-2">
                       <span className="text-3xl font-extrabold text-emerald-400 font-mono">
-                        {telemetry?.cacheHitRatio ?? 70.0}%
+                        {telemetry ? `${telemetry.cacheHitRatio}%` : dash}
                       </span>
                     </div>
                     <div className="text-[10px] font-mono text-slate-500">
-                      Hits: {telemetry?.cacheHits ?? 84} • Misses: {telemetry?.cacheMisses ?? 36}
+                      Hits: {telemetry?.cacheHits ?? dash} • Misses: {telemetry?.cacheMisses ?? dash}
                     </div>
                   </div>
                 </GlassCard3D>
@@ -368,11 +356,11 @@ export default function NoSqlDeepDivePage() {
                       </div>
                       <div className="flex items-center justify-between py-1 border-b border-white/5">
                         <span className="text-slate-400">Validation Level</span>
-                        <span className="text-emerald-400 font-bold">MODERATE</span>
+                        <span className="text-emerald-400 font-bold uppercase">{schemaInfo?.validationLevel ?? "moderate"}</span>
                       </div>
                       <div className="flex items-center justify-between py-1 border-b border-white/5">
                         <span className="text-slate-400">Validation Action</span>
-                        <span className="text-rose-400 font-bold">ERROR (Strict Reject)</span>
+                        <span className="text-rose-400 font-bold uppercase">{schemaInfo?.validationAction ?? "error"}</span>
                       </div>
                       <div className="flex items-center justify-between py-1">
                         <span className="text-slate-400">Engine Validation Status</span>
@@ -412,8 +400,8 @@ export default function NoSqlDeepDivePage() {
                     </div>
 
                     <pre className="text-emerald-400 max-h-[380px] overflow-y-auto p-2 bg-black/40 rounded-xl border border-emerald-500/20 leading-relaxed text-[11px]">
-                      {schemaInfo?.rawJsonSchema ? (
-                        JSON.stringify(JSON.parse(schemaInfo.rawJsonSchema), null, 2)
+                      {prettySchema ? (
+                        prettySchema
                       ) : (
                         `{
   "$jsonSchema": {
@@ -482,7 +470,7 @@ export default function NoSqlDeepDivePage() {
                   <div className="flex items-center gap-2 font-mono text-xs">
                     <span className="text-slate-400">Shard Key:</span>
                     <code className="bg-purple-950/60 border border-purple-500/30 text-purple-300 px-2.5 py-1 rounded-lg">
-                      &#123; &quot;applicationName&quot;: &quot;hashed&quot;, &quot;environment&quot;: 1 &#125;
+                      &#123; &quot;environment&quot;: 1, &quot;applicationName&quot;: &quot;hashed&quot; &#125;
                     </code>
                   </div>
                 </div>
@@ -495,7 +483,7 @@ export default function NoSqlDeepDivePage() {
                       mongos Routers
                     </div>
                     <p className="text-[11px] text-slate-300 font-light leading-relaxed">
-                      Stateless query routers caching the cluster chunk map from Config Replica Set. Computes MD5/Murmur3 hash on applicationName.
+                      Stateless query routers caching the cluster chunk map from Config Replica Set. Route on the environment prefix and the 64-bit hash of applicationName.
                     </p>
                   </div>
 
@@ -583,7 +571,7 @@ export default function NoSqlDeepDivePage() {
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 font-mono text-xs">
                     <div className="p-3 rounded-lg bg-black/40 border border-white/5 space-y-1">
-                      <span className="text-slate-400 text-[10px]">Murmur3 Hash</span>
+                      <span className="text-slate-400 text-[10px]">applicationName hash (simulated)</span>
                       <div className="text-white font-bold">{simResult.hashHex}</div>
                     </div>
                     <div className="p-3 rounded-lg bg-black/40 border border-white/5 space-y-1">
@@ -591,8 +579,10 @@ export default function NoSqlDeepDivePage() {
                       <div className="text-purple-400 font-bold">{simResult.targetShard}</div>
                     </div>
                     <div className="p-3 rounded-lg bg-black/40 border border-white/5 space-y-1">
-                      <span className="text-slate-400 text-[10px]">Chunk Range</span>
-                      <div className="text-cyan-400 font-bold">{simResult.chunkRange}</div>
+                      <span className="text-slate-400 text-[10px]">Zone Key Range</span>
+                      <div className="text-cyan-400 font-bold text-[10px] break-words" title={simResult.zoneRange}>
+                        {simResult.zoneRange}
+                      </div>
                     </div>
                     <div className="p-3 rounded-lg bg-black/40 border border-white/5 space-y-1">
                       <span className="text-slate-400 text-[10px]">Storage Zone</span>
@@ -601,11 +591,12 @@ export default function NoSqlDeepDivePage() {
                   </div>
 
                   <div className="text-[11px] font-mono text-slate-300 leading-relaxed bg-black/30 p-3 rounded-lg border border-white/5">
-                    <strong className="text-white">Explanation:</strong> Because the shard key includes both{" "}
-                    <code className="text-purple-300">applicationName (hashed)</code> and{" "}
-                    <code className="text-cyan-300">environment</code>, the <code className="text-emerald-300">mongos</code> router
-                    determines the exact target shard in 0.02ms. Remaining shards execute zero read operations,
-                    preserving cluster IOPS.
+                    <strong className="text-white">Explanation:</strong> The query filters on both shard-key fields,{" "}
+                    <code className="text-cyan-300">environment</code> and{" "}
+                    <code className="text-purple-300">applicationName (hashed)</code>, so the{" "}
+                    <code className="text-emerald-300">mongos</code> router sends it to the one shard that owns the
+                    matching chunk; the other shards do no work. The environment prefix also lets each environment be
+                    pinned to its own zone. This is a design (see SHARDING.md); the live demo runs on a single replica set.
                   </div>
                 </div>
               </div>

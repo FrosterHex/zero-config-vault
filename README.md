@@ -377,6 +377,20 @@ The dashboard is unavailable between steps 2 and 4 (a few minutes).
 - Never run the dev profile against the production database.
 - Open the site about 2 minutes before a demo so the Render instance is awake; a cold start can take longer than the proxy's 60 second limit.
 
+**Index change and rolling back**
+
+This release changes the `expiresAt` TTL index on `configurations` to `expireAfterSeconds: 0`, so each version is deleted at the exact date stored in its `expiresAt`. An older build declares `@Indexed(expireAfter = "90d")` and fails at startup with `IndexOptionsConflict` against the new index. Before redeploying an older build, restore the old setting with a user that has the `collMod` privilege, or drop the index and let the old build recreate it:
+
+```js
+db.runCommand({collMod: "configurations", index: {keyPattern: {expiresAt: 1}, expireAfterSeconds: 7776000}})
+```
+
+Post-deploy checks:
+
+- The logs show `CHANGE_STREAM` mode.
+- The logs do not contain `Could not ensure expiresAt TTL index`.
+- `db.configurations.getIndexes()` lists the `expiresAt` index with `expireAfterSeconds: 0`.
+
 ---
 
 ## 📡 REST API Catalog

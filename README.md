@@ -1,333 +1,218 @@
-# 🛡️ Zero-Config Vault
+# Zero-Config Vault
 
-> **Enterprise-Grade, GitOps-Style Configuration & Secret Management Engine**  
-> Powered by MongoDB 7.0 Replica Sets, Spring Boot 3.x (Java 17 LTS), and Next.js 15.
+A configuration and secret store for microservices, built with MongoDB as its only data store. Every change creates a new immutable version. Secrets are encrypted before they reach the database, and connected services and dashboards receive changes live.
 
-[![Live Dashboard](https://img.shields.io/badge/Live%20Dashboard-zeroconfig--one.vercel.app-6366f1.svg)](https://zeroconfig-one.vercel.app)
-[![Backend API](https://img.shields.io/badge/Backend%20API-Live%20on%20Render-emerald.svg)](https://zeroconfig-0s8m.onrender.com/swagger-ui.html)
-[![MongoDB Atlas](https://img.shields.io/badge/MongoDB-Atlas%20ReplicaSet%20M0-forestgreen.svg)]()
-[![Java 17](https://img.shields.io/badge/Java-17%20LTS-blue.svg)]()
-[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.2.5-brightgreen.svg)]()
-[![Next.js](https://img.shields.io/badge/Next.js-15.5.27%20(Turbopack)-black.svg)]()
-[![Lombok](https://img.shields.io/badge/Lombok-0%25%20(Strictly%20Excluded)-red.svg)]()
-[![License](https://img.shields.io/badge/License-Apache%202.0-lightgrey.svg)]()
+- **Live dashboard:** https://zeroconfig-one.vercel.app (guest access by default; admin after login)
+- **Backend API:** https://zeroconfig-0s8m.onrender.com/swagger-ui.html (free Render instance; the first request after idle can take a minute)
+- **Stack:** Java 17, Spring Boot 3.2.5, Spring Data MongoDB, MongoDB 7 (Atlas M0 in production, a single-node replica set locally), Next.js 15.5 with React 19, and a Spring Boot client starter.
 
----
+## Contents
 
-## 📖 Table of Contents
-1. [Overview](#-overview)
-2. [Architectural Highlights](#-architectural-highlights)
-3. [System Architecture Diagram](#-system-architecture-diagram)
-4. [Advanced NoSQL & MongoDB Capabilities](#-advanced-nosql--mongodb-capabilities)
-5. [Horizontal Sharding & Distributed Scalability](#-horizontal-sharding--distributed-scalability)
-6. [Cryptographic & Security Blueprint](#-cryptographic--security-blueprint)
-7. [GitOps Temporal Versioning & Delta Engine](#-gitops-temporal-versioning--delta-engine)
-8. [Real-Time SSE & Change Streams](#-real-time-sse--change-streams)
-9. [Spring Boot Client Starter](#-spring-boot-client-starter)
-10. [Frontend Dashboard Architecture](#-frontend-dashboard-architecture)
-11. [Quickstart: Docker Compose](#-quickstart-docker-compose)
-12. [Local Development](#-local-development)
-13. [Deploying](#-deploying)
-14. [REST API Catalog](#-rest-api-catalog)
-15. [Automated Verification & Test Harness](#-automated-verification--test-harness)
+1. [What it does](#what-it-does)
+2. [Architecture](#architecture)
+3. [MongoDB features used](#mongodb-features-used)
+4. [Versioning, rollback and retention](#versioning-rollback-and-retention)
+5. [Security](#security)
+6. [Live updates](#live-updates)
+7. [Bulk import](#bulk-import)
+8. [Dashboard](#dashboard)
+9. [Spring Boot client starter](#spring-boot-client-starter)
+10. [Running locally](#running-locally)
+11. [Tests](#tests)
+12. [Deploying](#deploying)
+13. [REST API](#rest-api)
+14. [Further documents](#further-documents)
 
----
+## What it does
 
-## 🌟 Overview
+- Stores JSON configuration per application and environment. Every write creates a new version; existing versions are not edited.
+- Encrypts every value under a `secure_settings` key with AES-256-GCM envelope encryption before it is stored.
+- Shows secrets only to API keys with the `REVEAL_SECRETS` permission; everyone else sees `********`.
+- Rolls back by copying an old version into a new one, and compares any two versions key by key.
+- Pushes each new version to subscribers over Server-Sent Events, sourced from a MongoDB change stream.
+- Imports many configurations at once, optionally all-or-nothing in a multi-document transaction.
+- Stores binary files such as certificates and keystores in GridFS, with their own versions.
+- Exports a configuration as JSON, YAML or `.env`.
+- Records every operation in a capped audit log, and the latency of reads and writes in a time-series collection.
 
-**Zero-Config Vault** is an all-in-one centralized configuration management, secret injection, and binary payload storage plane designed for distributed microservices. Unlike legacy systems that require complex clusters of Consul, ZooKeeper, or Redis caches alongside a SQL store, Zero-Config Vault leverages **MongoDB as its sole, highly optimized data engine**.
-
-It provides:
-- **Zero External Caches**: MongoDB native TTL collections serve as an ultra-fast 5-minute ephemeral cache layer.
-- **Auditable Capped Collections**: Append-only MongoDB circular logs prevent tampering and boundless disk growth.
-- **GitOps-Style Immutability**: Every configuration modification increments a monotonic version number ($v_1 \to v_2 \to v_3$). Existing versions can never be mutated or overwritten in-place.
-- **Hardware-Grade Cryptography**: Transparent field-level envelope encryption (AES-256-GCM + SHA-512 canonical verification) for sensitive payloads under `"secure_settings"`.
-- **Zero Lombok Enforcement**: 100% explicit, transparent, auditable Java 17 bytecode designed for strict security audits.
-
----
-
-## 🏛️ Architectural Highlights
+## Architecture
 
 ```mermaid
 flowchart TD
-    subgraph Clients["Clients & Microservices"]
-        UI["Next.js 15 Dashboard\n(Port 3000)"]
-        MS["Spring Boot Microservices\n(with vault-spring-boot-starter)"]
-        CLI["CI/CD & CLI\n(curl / PowerShell)"]
+    subgraph Clients
+        UI["Next.js dashboard (Vercel)"]
+        MS["Spring Boot services\n(vault-spring-boot-starter)"]
+        CLI["curl / CI pipelines"]
     end
 
-    subgraph Gateway["Vault Backend (Spring Boot 3.x - Port 8080)"]
-        AUTH["Scoped API Key Filter\n(RBAC / Scope Matrix)"]
-        REST["REST API Controllers\n(Config, Export, Diff, Stats)"]
-        SSE["SSE Controller\n(/stream/{app}/{env})"]
-        BLOB["GridFS Binary Controller\n(/binaries/{app}/{env})"]
-        CRYPTO["Crypto & Envelope Engine\n(AES-256-GCM / SHA-512)"]
-        CACHE["Cache Service\n(TTL Ephemeral Storage)"]
-        AUDIT["Audit Service\n(Secret Masking Filter)"]
+    subgraph BFF["Dashboard server (Next.js route handlers)"]
+        PROXY["/api/vault proxy\nadds the API key server-side"]
+        LOGIN["/api/auth login\nsigned session cookie"]
     end
 
-    subgraph Mongo["MongoDB 7.0 Replica Set (rs0)"]
-        DOCS[("vault_documents\n(Compound Unique Index)")]
-        TTL[("cached_configs\n(Native TTL Index)")]
-        LOGS[("audit_logs\n(50MB Capped Collection)")]
-        KEYS[("api_keys\n(Scoped RBAC Credentials)")]
-        GFS[("fs.files / fs.chunks\n(GridFS Binary Blobs)")]
-        OPLOG["MongoDB Oplog\n(Change Streams)"]
+    subgraph Backend["Vault backend (Spring Boot, Render)"]
+        AUTH["ApiKeyAuthFilter\nroles + app/env scopes"]
+        API["Config, binary, export,\nstats, audit, key controllers"]
+        CRYPTO["CryptoService\nAES-256-GCM envelope encryption"]
+        CS["ChangeStreamService\nSSE fan-out"]
     end
 
-    UI -->|"REST & SSE"| AUTH
-    MS -->|"PropertySource & SSE"| AUTH
-    CLI -->|"REST"| AUTH
+    subgraph Mongo["MongoDB 7 replica set (database secure_config_vault)"]
+        CFG[("configurations")]
+        BIN[("binary_configurations\n+ GridFS bucket vault_binaries")]
+        CACHE[("config_cache\nTTL 300 s")]
+        AUDIT[("audit_logs\ncapped")]
+        TEL[("config_access_telemetry\ntime series")]
+        KEYS[("api_keys")]
+    end
 
-    AUTH --> REST
-    AUTH --> SSE
-    AUTH --> BLOB
-
-    REST --> CRYPTO
-    CRYPTO --> DOCS
-    REST --> CACHE
-    CACHE --> TTL
-    REST --> AUDIT
-    AUDIT --> LOGS
-    BLOB --> GFS
-
-    OPLOG -.->|"collection.watch()"| SSE
-    SSE -.->|"Live SSE Push"| MS
-    SSE -.->|"Live SSE Push"| UI
+    UI --> PROXY --> AUTH
+    UI --> LOGIN
+    MS --> AUTH
+    CLI --> AUTH
+    AUTH --> API
+    API --> CRYPTO --> CFG
+    API --> BIN
+    API --> CACHE
+    API --> AUDIT
+    API --> TEL
+    AUTH --> KEYS
+    CFG -. "change stream (inserts)" .-> CS
+    BIN -. "change stream (inserts)" .-> CS
+    CS -. "SSE" .-> UI
+    CS -. "SSE" .-> MS
 ```
 
----
+The browser never holds an API key. The dashboard's server-side proxy attaches the guest or admin key according to the signed session cookie, and blocks writes for guests outside the `playground` application.
 
-## ⚡ Advanced NoSQL & MongoDB Capabilities
+## MongoDB features used
 
-Zero-Config Vault pushes MongoDB 7.0 to its architectural limits by utilizing native database engine features that eliminate third-party caching, queuing, and search infrastructure:
+| Feature | Where | What it does here |
+| :--- | :--- | :--- |
+| Compound unique index | `configurations` `{applicationName, environment, version}` | Two writers cannot create the same version; the loser gets `409 Conflict`. |
+| `$jsonSchema` validator | `configurations` | Requires `applicationName`, `environment`, `version`, `documentHash`, `payload` and `createdAt`; the application name must match `^[a-zA-Z0-9_-]+$`, and the environment must be one of `development`, `staging`, `production`, `dr`. Invalid direct inserts fail with error code 121. |
+| TTL index (exact date) | `configurations.expiresAt`, `expireAfterSeconds: 0` | Deletes old superseded versions on the date stored in each document (see retention below). |
+| TTL index (fixed age) | `config_cache.cachedAt`, 300 s | Read cache that expires after 5 minutes, so no Redis is needed. |
+| Capped collection | `audit_logs`, 50 MB / 10,000 documents | Append-only audit trail that discards its oldest entries automatically. |
+| Time-series collection | `config_access_telemetry` (`timeField: timestamp`, `metaField: metadata`, granularity seconds) | Latency, cache hits and status codes per application, environment, operation and client IP. |
+| Text index | `configurations` on `applicationName`, `searchableText`, `environment` | Global search. `searchableText` holds key paths and non-secret values only. |
+| Aggregation (`$facet`, `$group`, `$bsonSize`) | `GET /stats` | Counts per environment and application, and stored size per document. |
+| Change streams | database-level watch on `configurations` and `binary_configurations` | Exactly one live event per new version, with resume tokens. |
+| Multi-document transactions | `POST /config/bulk?atomic=true` | All-or-nothing bulk import. |
+| GridFS | bucket `vault_binaries` | Binary files of any size, stored in chunks. |
 
-### 1. MongoDB Native Time-Series Collections (`timeseries`)
-Access telemetry is recorded in a native time-series collection (`config_access_telemetry`):
-- **timeField**: `timestamp`
-- **metaField**: `metadata` (`applicationName`, `environment`, `operation`, `clientIp`)
-- **granularity**: `SECONDS`
-Aggregated via MongoDB's high-speed bucketing pipelines to deliver sub-millisecond throughput analytics and cache hit efficiency metrics directly to the dashboard.
+Sharding is designed but not deployed (Atlas M0 does not support it). See [SHARDING.md](SHARDING.md).
 
-### 2. Engine-Level Schema Validation (`$jsonSchema`)
-Structural governance is enforced directly at the MongoDB storage engine level via `$jsonSchema`:
-- Mandatory presence of `applicationName`, `environment`, `version`, `documentHash`, and `payload`.
-- Strict regex slug constraints and environment enum validation (`["development", "staging", "production", "dr"]`).
-- Rejects corrupt or unauthorized direct database insertions with native MongoDB `DocumentValidationFailure` (Error Code 121).
+## Versioning, rollback and retention
 
-### 3. Full-Text Search Index (`$text`)
-MongoDB Full-Text text indexing on `{ applicationName: "text", searchableText: "text", environment: "text" }` powers instantaneous global search across thousands of configurations, returning matching key paths, deep links, and highlighted snippets.
+- **New versions only.** A create, a partial update (`PATCH`), a rollback or a bulk import inserts a new document with the next version number. The payload of an existing version is never changed.
+- **Rollback.** `POST /config/{app}/{env}/rollback/{version}` copies the stored payload of the target version into a new version, tagged `rollback_from_version`. The history therefore shows the rollback as its own step.
+- **Diff.** `GET /config/{app}/{env}/diff?v1=1&v2=3` returns `added`, `removed`, `modified` (each with `oldValue` and `newValue`) and `unchangedCount`, keyed by dot-notation path.
+- **Retention.** The current version and the 5 most recent superseded versions are always kept. An older version gets an `expiresAt` date 90 days after it falls out of that window, and MongoDB's TTL monitor deletes it on that date. Both numbers are settings (`vault.version.retain-count`, `vault.version.expiry-days`). An `expiry-days` of 0 or less turns expiry off and clears pending dates. Binary versions are not subject to retention.
 
----
+## Security
 
-## 🌐 Horizontal Sharding & Distributed Scalability
+- **Envelope encryption.** Every value under a `secure_settings` key, at any depth, is encrypted with AES-256-GCM using its own random 256-bit data key. The data key is itself encrypted with the master key from `VAULT_MASTER_KEY`, and stored next to the ciphertext with its IV. Outside the dev profile the backend refuses to start without a strong master key. `CryptoService.reEncryptDek` can re-wrap a data key under a new master key, but there is no key-rotation endpoint yet.
+- **No plaintext at rest.** Searchable text, the cache and audit entries never contain decrypted secrets. On startup, `PlaintextRemediationRunner` encrypts any plaintext secret left by older builds.
+- **Pre-encrypted input is refused.** A client cannot submit a value that already looks like an encrypted envelope. Such a request gets `400 Bad Request`, for example `secure_settings.password must be a plain value; encrypted envelopes cannot be submitted`.
+- **Integrity hash.** Each version stores a SHA-512 hash of its canonical (key-sorted) JSON payload, computed over the encrypted form. Reads recompute it and answer `409 Conflict` if the document was altered.
+- **API keys.** Keys are sent in the `X-API-Key` header. The database stores only a SHA-256 hash of each key and a short display prefix. Each key has roles and may be limited to certain applications and environments.
 
-For full details on the multi-shard cluster design, refer to the **[MongoDB Sharding Blueprint](file:///d:/college/Sem/Sem%207/NoSQL%20Databases/Project/Zero-Config%20Vault/SHARDING.md)**.
+  | Role | Allows |
+  | :--- | :--- |
+  | `READ` | `GET` requests in the key's scope |
+  | `WRITE` | `POST`, `PATCH`, `PUT` and `DELETE` in the key's scope |
+  | `ROLLBACK` | rollback endpoints |
+  | `EXPORT` | export endpoints |
+  | `REVEAL_SECRETS` | decrypted secret values in responses |
+  | `ADMIN` | everything, including `/keys` and the global change stream |
 
-- **Compound Shard Key**: `{ "applicationName": "hashed", "environment": 1 }`
-- **Uniform Write Distribution**: MongoDB Murmur3 hashing guarantees even write dispersal without monotonic version hotspots.
-- **Single-Shard Targeted Querying**: `mongos` dispatches operational reads directly to a single shard, eliminating scatter-gather broadcast overhead.
-- **Zone Sharding**: Dedicated NVMe SSD shards for `production` configurations (`ZONE_PROD_TIER1`) isolated from commodity dev/staging nodes.
+- **Masking.** Without `REVEAL_SECRETS`, secret values are replaced with `********` in reads, history, diffs, exports, path queries and the audit log. Any request can also ask for masking with `?masked=true`. When a client saves a payload that still contains `********`, the stored secret is kept.
+- **Dev keys.** The keys `sk-dev-key-001`, `sk-dev-guest-read` and `sk-dev-guest-sandbox` exist only with the `dev` Spring profile. In any other profile they are deactivated at startup.
 
----
+## Live updates
 
-## 🔐 Cryptographic & Security Blueprint
+- `GET /api/v1/vault/stream/{app}/{env}` opens a Server-Sent Events stream. It sends an `INIT` event on connect, then one `CONFIG_CHANGE` event per new version with `eventType` (`CREATE` or `ROLLBACK`), `applicationName`, `environment`, `version`, `documentHash` and `timestamp`.
+- `GET /api/v1/vault/stream` (admin only) streams changes for every application.
+- The events come from a single MongoDB change stream that watches inserts into `configurations` and `binary_configurations`. Updates (retention marking) and deletes (TTL expiry) produce no events.
+- After a dropped connection the backend resumes from its last resume token, retrying every 1 s up to every 30 s. If the token is no longer valid it restarts from the current time and logs a warning.
+- If change streams are not available at startup (a standalone MongoDB), the backend runs in fallback mode for its lifetime and broadcasts from the write path instead. The log line `Live events run in CHANGE_STREAM mode` or `FALLBACK mode` shows which one is active.
 
-### 1. Envelope Encryption (DEK & KEK)
-Every configuration block containing sensitive keys is protected using an **Envelope Encryption** scheme:
-- **Key Encryption Key (KEK)**: Stored in an environment-isolated root keystore or injected via `VAULT_MASTER_KEY` (AES-256-GCM).
-- **Data Encryption Key (DEK)**: Ephemeral 256-bit cryptographically secure symmetric key generated per configuration revision.
-- **Envelope Storage**: The encrypted configuration payload is stored with its encrypted DEK, IV/nonce, and authentication tag. Rotating the parent KEK only re-encrypts stored DEKs without touching the underlying payload documents.
+## Bulk import
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Dev as Developer / Microservice
-    participant API as Vault Controller
-    participant Interceptor as MongoConfigListener
-    participant Crypto as CryptoService (JCA)
-    participant DB as MongoDB (vault_documents)
+`POST /api/v1/vault/config/bulk` takes `{"configs": [ {applicationName, environment, payload, tags}, ... ]}`.
 
-    Dev->>API: POST /api/v1/vault/config (JSON payload + secure_settings)
-    API->>Interceptor: onBeforeConvert()
-    Interceptor->>Crypto: Inspect keys matching 'secure_settings'
-    Crypto->>Crypto: Generate DEK & Encrypt with AES-256-GCM
-    Crypto->>Crypto: Compute Canonical JSON SHA-512 Hash
-    Crypto-->>Interceptor: Encrypted Base64 Payload + Tag + IV
-    Interceptor->>DB: Insert immutable VaultDocument (v = current + 1)
-    DB-->>API: Persisted
-    API-->>Dev: 201 Created (ConfigResponse with documentHash)
-```
+- **Best effort (default).** Each entry is saved on its own; the response lists which entries failed and why.
+- **Atomic (`?atomic=true`).** All inserts run in one MongoDB transaction. If any entry fails validation, nothing is stored, the response is `422`, and a `BULK_IMPORT_ROLLBACK` audit entry is written. Cache eviction, retention, audit entries and live events happen only after the transaction commits. Against a MongoDB that does not support transactions, the request fails with `422` and "atomic bulk import requires a replica set" rather than silently running best effort.
 
-### 2. SHA-512 Canonical Document Hashing
-To prevent subtle JSON key ordering manipulation from altering cryptographic signatures:
-1. Incoming JSON structures are parsed into canonical sorted representations.
-2. Formatted through `MessageDigest.getInstance("SHA-512")`.
-3. Hex-encoded into a 128-character immutable signature (`documentHash`).
-4. Displayed with an **Integrity Verification Badge** on the frontend dashboard.
+## Dashboard
 
-### 3. Dynamic Audit Log Secret Masking
-Every mutation operation records an entry into the capped `audit_logs` collection. Sensitive configuration keys (`password`, `secret`, `token`, `key`, `private`, `credential`) are automatically masked in audit traces (e.g., `"password": "********"`), ensuring zero compliance leakage in persistent logs.
+The dashboard (`frontend/`) has these pages: `/dashboard` (statistics and telemetry), `/configs` (payload tree editor, version timeline, rollback, integrity badge), `/diff` (split and unified diff), `/binaries` (GridFS files), `/export`, `/audit` (recent audit entries, refreshed on each live event), `/access` (API key management) and `/nosql` (the MongoDB features above).
 
----
+- **Guest (default).** Reads every application. Writes and rollbacks are allowed only in the `playground` application, so visitors can try the editor without changing the demo data. Secrets stay masked.
+- **Admin (after login).** Full access, including revealed secrets and key management.
 
-## ⏱️ GitOps Temporal Versioning & Delta Engine
+The design uses Cormorant Garamond, Montserrat and JetBrains Mono, Tailwind CSS 4, Framer Motion (animations respect `prefers-reduced-motion`) and a Three.js hologram on the landing page.
 
-1. **Strict Immutability**:
-   A compound unique index on `{ applicationName: 1, environment: 1, version: 1 }` prevents overwriting past configurations.
-2. **Atomic Rollback**:
-   Executing `POST /api/v1/vault/config/{app}/{env}/rollback?targetVersion={target}` reads the exact snapshot of $v_{target}$, increments the monotonic version pointer to $v_{highest} + 1$, and writes a new immutable revision referencing the rollback origin.
-3. **Dot-Notation Path Traversal**:
-   Extract nested settings directly without transferring the entire payload:
-   ```http
-   GET /api/v1/vault/config/payment-gateway/production/path?path=server.ssl.protocol
-   ```
-   **Response**: `"TLSv1.3"`
-4. **Structural Diffing (`/diff`)**:
-   Deep structural delta comparison between any two version numbers ($v_1$ and $v_2$):
-   ```json
-   {
-     "added": { "payment.gateways[3]": "apple_pay" },
-     "removed": {},
-     "modified": {
-       "server.timeoutMs": { "oldValue": 5000, "newValue": 3000 }
-     },
-     "unchangedCount": 14
-   }
-   ```
+## Spring Boot client starter
 
----
+`starter/` builds `com.vault:vault-spring-boot-starter:1.0.0-SNAPSHOT`, a library that loads a service's configuration from the vault at startup.
 
-## ⚡ Real-Time SSE & Change Streams
-
-Zero-Config Vault eliminates polling loops through native **MongoDB Change Streams** hooked to **Server-Sent Events (SSE)**:
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant App as Microservice Client
-    participant SSE as Vault SSE Controller
-    participant Watcher as Mongo ChangeStreamEngine
-    participant Oplog as MongoDB Oplog (rs0)
-
-    App->>SSE: GET /api/v1/vault/stream/payment-gateway/production (Accept: text/event-stream)
-    SSE-->>App: HTTP 200 OK (Connection: keep-alive)
-    Watcher->>Oplog: collection.watch(filter: app == 'payment-gateway' && env == 'production')
-    Note over Oplog: New configuration inserted (v = 3)
-    Oplog-->>Watcher: ChangeStreamDocument (OperationType: INSERT)
-    Watcher->>SSE: Emit StreamEvent (app, env, version, documentHash)
-    SSE-->>App: data: {'action':'CONFIG_UPDATED','version':3,'documentHash':'...'}
-    App->>App: Invalidate in-memory cache & reload dynamic @Value beans
-```
-
----
-
-## 📦 Spring Boot Client Starter
-
-The `starter/` directory contains `vault-spring-boot-starter`, a drop-in client library for Spring Boot microservices.
-
-### 1. Maven Dependency
-```xml
-<dependency>
-    <groupId>com.vault</groupId>
-    <artifactId>vault-spring-boot-starter</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
-</dependency>
-```
-
-### 2. Client Configuration (`application.yml`)
 ```yaml
 vault:
-  client:
-    enabled: true
-    server-url: http://localhost:8080
-    api-key: sk-payment-service-key
-    application-name: payment-gateway
-    environment: production
-    fail-fast: false
-    sse:
-      auto-refresh: true
+  uri: http://localhost:8080
+  application-name: payment-gateway   # defaults to spring.application.name
+  environment: production             # defaults to the first active profile
+  api-key: <key with READ and REVEAL_SECRETS>
+  fail-on-error: false                # true stops startup if the vault is unreachable
+  stream-enabled: true                # subscribe to live changes
+  timeout: 5000                       # milliseconds
 ```
 
-### 3. Dynamic Property Binding
-Properties stored in the vault seamlessly bind to Spring's `Environment` and standard `@Value` or `@ConfigurationProperties` annotations:
-```java
-@RestController
-@RefreshScope
-public class CheckoutController {
+- At startup the starter fetches `GET /api/v1/vault/config/{app}/{env}` and adds the payload to the Spring `Environment` as dot-notation properties, for example `secure_settings.stripe_api_secret`. They work with `@Value` and `@ConfigurationProperties`.
+- The vault's properties are added with the lowest precedence, so a value in the service's own `application.yml` wins.
+- The key needs `READ` and `REVEAL_SECRETS`. Without `REVEAL_SECRETS` the service would receive the literal `********`.
+- With `stream-enabled: true`, the starter listens to the SSE stream and publishes a `VaultConfigRefreshedEvent` for each message. The service decides how to react, for example with an `@EventListener` that reloads its settings. The starter does not refresh beans by itself.
 
-    @Value("${payment.rateLimitPerMinute:1000}")
-    private int rateLimit;
+## Running locally
 
-    @Value("${secure_settings.stripe_api_secret}")
-    private String stripeSecret; // Decrypted automatically by Vault on fetch
-}
-```
-> **Secrets are masked unless the key has `REVEAL_SECRETS`.** Any API key without the `REVEAL_SECRETS` permission now receives `********` in place of every secret value. A service or microservice key used with this starter therefore needs the `READ` and `REVEAL_SECRETS` roles to receive decrypted `secure_settings`. Without `REVEAL_SECRETS` the application would bind the literal placeholder. Admin keys imply `REVEAL_SECRETS`.
-
-When a revision is committed in the vault, the starter's SSE listener receives the event and triggers Spring's `ContextRefreshedEvent` without restarting the JVM.
-
----
-
-## 🎨 Frontend Dashboard Architecture
-
-The Next.js 15 dashboard (`frontend/`) is crafted with high-density, production-ready enterprise ergonomics:
-- **Typography**: Cormorant Garamond (refined headings) paired with Montserrat (high-legibility technical data).
-- **Motion Accessibility**: All Framer Motion micro-interactions query `prefers-reduced-motion` and drop transitions to 0ms when active.
-- **Interactive JSON Tree Editor**: Expandable node tree with type badges, envelope-encryption lock icons, and a raw JSON syntax validator.
-- **Visual Git Timeline**: Git-style vertical commit spine with glow states, SHA-512 hashes, and quick-rollback triggers.
-- **Delta Studio Diff Viewer**: Side-by-side and unified diff views with colorized added (**Green**), deleted (**Red**), and modified (**Yellow**) nodes.
-- **Real-Time Telemetry Cards**: MongoDB aggregation pipeline metrics displaying environment counts, version distributions, audit log volume, and live oplog status.
-
----
-
-## 🚀 Quickstart: Docker Compose
-
-Bring up the complete ecosystem (MongoDB 7.0 Replica Set, Database Initializer, Spring Boot Backend, and Next.js 15 Frontend) with a single command:
+### Everything with Docker Compose
 
 ```bash
 docker compose up --build
 ```
 
-### Container Endpoints:
-| Service | URL | Credentials / Notes |
+| Service | Address | Notes |
 | :--- | :--- | :--- |
-| **Frontend Dashboard** | `http://localhost:3000` | Guest by default; admin login password is `admin` (dev only) |
-| **Backend REST API** | `http://localhost:8080` | Dev profile only: `X-API-Key: sk-dev-key-001` (admin). Never works against a production deployment |
-| **Swagger UI Interactive Docs** | `http://localhost:8080/swagger-ui.html` | Interactive REST testing |
-| **OpenAPI Specification** | `http://localhost:8080/v3/api-docs` | Machine-readable API schema |
-| **MongoDB Replica Set** | `localhost:27017` | Database: `secure_config_vault` (rs0) |
+| Dashboard | http://localhost:3000 | Guest by default; the admin password is `admin` (local only) |
+| Backend | http://localhost:8080 | Runs with the `dev` profile; admin key `sk-dev-key-001` |
+| Swagger UI | http://localhost:8080/swagger-ui.html | |
+| OpenAPI | http://localhost:8080/v3/api-docs | |
+| MongoDB | localhost:27017 | Replica set `rs0`, database `secure_config_vault` |
 
----
+The `mongo` container initialises the replica set, and `docker/init-mongo.js` creates the capped audit and time-series collections. Indexes, the validator, demo data and API keys are created by the backend on startup.
 
-## 💻 Local Development
+### Backend and frontend by hand
 
-### Prerequisites
-- **Java 17 LTS**
-- **Maven 3.9+**
-- **Node.js 20 LTS** & **npm**
-- **MongoDB 7.0+** running locally as a replica set
+Prerequisites: Java 17, Maven 3.9+, Node.js 20+, and MongoDB 7 running as a replica set on `localhost:27017` (a standalone server works, but then live events use fallback mode and atomic bulk import is refused).
 
-### 1. Build and Run Backend
 ```bash
-# In the root repository directory
+# Backend, from the repository root
 mvn clean package -DskipTests
-java -jar target/secure-config-vault-1.0.0-SNAPSHOT.jar
+java -jar target/secure-config-vault-1.0.0-SNAPSHOT.jar --spring.profiles.active=dev
 ```
 
-### 2. Run Starter Tests
+The `dev` profile seeds the well-known development keys and accepts a published development master key. Never run it against the production database: it would reactivate the published keys as admin keys.
+
 ```bash
-cd starter
-mvn test
+# Frontend
+cd frontend
+cp .env.example .env.local   # defaults match the dev keys
+npm install
+npm run dev                  # http://localhost:3000
 ```
 
-### Tests
-`mvn test` in the repository root runs the unit tests and the integration tests (`*IT.java`). The integration tests start a real MongoDB 7.0 replica set through Testcontainers, so they need Docker and are skipped when Docker is not available. The first run pulls the `mongo:7.0` image. `mvn -f starter/pom.xml test` runs the starter's own tests.
-
-### 3. Build and Run Frontend
-Run the backend with the `dev` Spring profile (`--spring.profiles.active=dev`). That profile seeds the well-known development keys; outside it they are refused. The dashboard talks to the backend only through its server-side proxy, so the browser never sees an API key and no `NEXT_PUBLIC_VAULT_*` variable is used. Copy `frontend/.env.example` to `frontend/.env.local`; its defaults match the dev keys:
-
-| Variable (server only) | Local dev value | Purpose |
+| Variable (server only) | Local value | Purpose |
 | :--- | :--- | :--- |
 | `VAULT_API_URL` | `http://localhost:8080` | Backend base URL |
 | `VAULT_GUEST_READ_KEY` | `sk-dev-guest-read` | Key used for guest reads |
@@ -336,97 +221,103 @@ Run the backend with the `dev` Spring profile (`--spring.profiles.active=dev`). 
 | `ADMIN_PASSWORD` | `admin` | Admin login password |
 | `SESSION_SECRET` | any 64 hex characters | Signs the session cookie; at least 32 random bytes |
 
-```bash
-cd frontend
-npm install
-npm run dev
-# Dashboard accessible at http://localhost:3000
-```
+No `NEXT_PUBLIC_VAULT_*` variable is used; the browser never receives an API key.
 
-Never run the dev profile against the production database: it would reseed the published development keys as active admin keys.
+## Tests
 
----
+| Command | Runs |
+| :--- | :--- |
+| `mvn test` | Backend unit tests and integration tests (`*IT.java`) |
+| `mvn -f starter/pom.xml test` | Starter tests |
+| `cd frontend && npm test` | Frontend tests (session, proxy policy, API client) |
 
-## 🚢 Deploying
+The backend integration tests start a real MongoDB 7.0 replica set with Testcontainers. They cover retention and TTL deletion, live events, atomic bulk import and encryption at rest. They need Docker and are skipped when Docker is not available. The first run downloads the `mongo:7.0` image.
 
-The backend runs on Render and the frontend on Vercel. In production the dev profile is off and the well-known development keys are refused.
+## Deploying
+
+The backend runs on Render and the frontend on Vercel. Both deploy automatically when `main` changes. In production the dev profile is off and the development keys are refused.
 
 **Production variables**
 
 | Where | Variable | Notes |
 | :--- | :--- | :--- |
-| Render | `VAULT_MASTER_KEY`, `VAULT_BOOTSTRAP_ADMIN_KEY` | Master key encrypts the data keys; the bootstrap key seeds the first admin key |
+| Render | `SPRING_DATA_MONGODB_URI` | Atlas connection string |
+| Render | `VAULT_MASTER_KEY`, `VAULT_BOOTSTRAP_ADMIN_KEY` | The master key encrypts the data keys; the bootstrap key seeds the first admin key |
 | Vercel (server only) | `VAULT_API_URL` | Render base URL |
-| Vercel (server only) | `VAULT_GUEST_READ_KEY`, `VAULT_GUEST_SANDBOX_KEY`, `VAULT_ADMIN_KEY` | Raw keys created with `POST /keys` |
+| Vercel (server only) | `VAULT_GUEST_READ_KEY`, `VAULT_GUEST_SANDBOX_KEY`, `VAULT_ADMIN_KEY` | Keys created with `POST /keys` |
 | Vercel (server only) | `ADMIN_PASSWORD`, `SESSION_SECRET` | `SESSION_SECRET` is at least 32 random bytes |
 
-**Deployment order**
+**First deployment**
 
-1. Render: set `VAULT_MASTER_KEY` and `VAULT_BOOTSTRAP_ADMIN_KEY`. If the master key differs from the one that encrypted the current Atlas data, wipe the demo collections so the seeder reseeds.
+1. Render: set `VAULT_MASTER_KEY` and `VAULT_BOOTSTRAP_ADMIN_KEY`. If the master key differs from the one that encrypted the existing Atlas data, empty the demo collections so the seeder can reseed them.
 2. Merge to `main`; Render and Vercel both deploy.
 3. With the bootstrap admin key, create the guest-read, guest-sandbox and admin keys via `POST /keys`.
-4. Vercel: set the server-only variables, delete any `NEXT_PUBLIC_VAULT_*` variables, and redeploy.
-5. Verify: no key appears in the built bundle, and the guest and admin flows work on the live URLs.
-
-The dashboard is unavailable between steps 2 and 4 (a few minutes).
+4. Vercel: set the server-only variables and redeploy.
+5. Check that no key appears in the built frontend bundle, and that the guest and admin flows work on the live site.
 
 **After deploying**
 
 - Revoke the bootstrap admin key once the three dashboard keys exist.
-- Use a long random `ADMIN_PASSWORD`. The login endpoint is not rate-limited.
-- Never run the dev profile against the production database.
-- Open the site about 2 minutes before a demo so the Render instance is awake; a cold start can take longer than the proxy's 60 second limit.
+- Use a long random `ADMIN_PASSWORD`; the login endpoint is not rate-limited.
+- Open the site about 2 minutes before a demo so the Render instance is awake. A cold start can take longer than the proxy's 60-second limit.
+- Check the backend log for `Live events run in CHANGE_STREAM mode` and the absence of `Could not ensure expiresAt TTL index`. `db.configurations.getIndexes()` should list the `expiresAt` index with `expireAfterSeconds: 0`.
 
-**Index change and rolling back**
+**Rolling back to an older build**
 
-This release changes the `expiresAt` TTL index on `configurations` to `expireAfterSeconds: 0`, so each version is deleted at the exact date stored in its `expiresAt`. An older build declares `@Indexed(expireAfter = "90d")` and fails at startup with `IndexOptionsConflict` against the new index. Before redeploying an older build, restore the old setting with a user that has the `collMod` privilege, or drop the index and let the old build recreate it:
+Builds before the retention change declare the `expiresAt` index with `expireAfterSeconds: 7776000` (90 days) and fail at startup with `IndexOptionsConflict` against the current index. Before redeploying such a build, restore the old setting with a user that has the `collMod` privilege, or drop the index and let the old build recreate it:
 
 ```js
 db.runCommand({collMod: "configurations", index: {keyPattern: {expiresAt: 1}, expireAfterSeconds: 7776000}})
 ```
 
-Post-deploy checks:
+## REST API
 
-- The logs show `CHANGE_STREAM` mode.
-- The logs do not contain `Could not ensure expiresAt TTL index`.
-- `db.configurations.getIndexes()` lists the `expiresAt` index with `expireAfterSeconds: 0`.
+All endpoints under `/api/v1/vault` need an `X-API-Key` header, except that the stream and binary download endpoints also accept `?apiKey=` on `GET` (for `EventSource` and download links). Swagger UI lists the request and response schemas.
 
----
+**Configurations** (`/api/v1/vault/config`)
 
-## 📡 REST API Catalog
-
-All `/api/v1/vault/**` endpoints require an `X-API-Key` header.
-
-### Configuration Management
-| Method | Endpoint | Description |
+| Method | Path | Description |
 | :--- | :--- | :--- |
-| `POST` | `/api/v1/vault/config` | Create or update a configuration (increments version) |
-| `GET` | `/api/v1/vault/config/{app}/{env}` | Get active (latest) configuration payload |
-| `GET` | `/api/v1/vault/config/{app}/{env}/versions` | List all historical version summaries |
-| `GET` | `/api/v1/vault/config/{app}/{env}/versions/{version}` | Get specific historical snapshot |
-| `GET` | `/api/v1/vault/config/{app}/{env}/path?path=...` | Query nested value by dot-notation path |
-| `GET` | `/api/v1/vault/config/search?query=...` | MongoDB Full-Text ($text index) & regex search |
-| `POST` | `/api/v1/vault/config/{app}/{env}/rollback` | Atomically rollback to target version |
-| `POST` | `/api/v1/vault/config/bulk?atomic=true` | Bulk import configs with ACID transaction |
+| `POST` | `/config` | Create a new version (`applicationName`, `environment`, `payload`, `tags`) |
+| `PATCH` | `/config/{app}/{env}` | Merge a partial payload into the latest version, as a new version |
+| `GET` | `/config/{app}/{env}` | Latest version (`?masked=true` to mask secrets) |
+| `GET` | `/config/{app}/{env}/versions` | Version history |
+| `GET` | `/config/{app}/{env}/version/{version}` | One version |
+| `GET` | `/config/{app}/{env}/diff?v1=&v2=` | Differences between two versions |
+| `GET` | `/config/{app}/{env}/search?path=a.b.c` | Value at a dot-notation path |
+| `POST` | `/config/{app}/{env}/rollback/{version}` | New version with the content of `{version}` (`ROLLBACK` role) |
+| `GET` | `/config/{app}/{env}/export?format=json\|yaml\|env` | Export (`EXPORT` role); also at `/export/{app}/{env}` |
+| `GET` | `/config/search?query=` | Full-text search across all configurations |
+| `POST` | `/config/bulk?atomic=true\|false` | Bulk import |
 
-### Version Control & Diffing
-| Method | Endpoint | Description |
-| :--- | :--- | :--- |
-| `GET` | `/api/v1/vault/config/{app}/{env}/diff?v1={v1}&v2={v2}` | Structural delta between two versions |
-| `GET` | `/api/v1/vault/export/{app}/{env}?format={json\|yaml\|env}` | Export configuration file |
+**Binary files** (`/api/v1/vault/binaries`)
 
-### Real-Time Streaming & Binary Storage
-| Method | Endpoint | Description |
+| Method | Path | Description |
 | :--- | :--- | :--- |
-| `GET` | `/api/v1/vault/stream/{app}/{env}` | Server-Sent Events (SSE) change stream pipe |
-| `POST` | `/api/v1/vault/binaries/{app}/{env}` | Upload GridFS binary blob (TLS cert, keystore) |
-| `GET` | `/api/v1/vault/binaries/{app}/{env}/download` | Download binary payload with content type |
+| `POST` | `/binaries/{app}/{env}/upload` | Upload a file (multipart field `file`); each upload of the same file name is a new version |
+| `GET` | `/binaries/{app}/{env}` | List files |
+| `GET` | `/binaries/{app}/{env}/{filename}?version=` | Download (latest version by default) |
+| `GET` | `/binaries/{app}/{env}/{filename}/versions` | Version history |
+| `POST` | `/binaries/{app}/{env}/{filename}/rollback/{version}` | New version with the content of `{version}` |
 
-### System Telemetry & Access Control
-| Method | Endpoint | Description |
+**Live events, statistics, audit and keys**
+
+| Method | Path | Description |
 | :--- | :--- | :--- |
-| `GET` | `/api/v1/vault/stats` | MongoDB aggregation pipeline system metrics |
-| `GET` | `/api/v1/vault/stats/telemetry?minutes=...` | Native Time-Series request latency & cache ratio |
-| `GET` | `/api/v1/vault/stats/schema` | Engine-level MongoDB $jsonSchema validation rules |
-| `POST` | `/api/v1/vault/keys` | Create scoped API key (Requires `ADMIN` role) |
-| `GET` | `/api/v1/vault/keys` | List active scoped API keys (`ADMIN` role) |
+| `GET` | `/stream/{app}/{env}` | SSE stream for one application and environment |
+| `GET` | `/stream` | SSE stream for all applications (`ADMIN`) |
+| `GET` | `/stats` | Aggregated counts and sizes |
+| `GET` | `/dashboard` | Dashboard summary |
+| `GET` | `/stats/telemetry?minutes=60` | Time-series latency and cache hits |
+| `GET` | `/stats/schema` | The active `$jsonSchema` rules |
+| `GET` | `/audit?limit=50&app=&env=` | Recent audit entries |
+| `POST` | `/keys` | Create an API key (`ADMIN`); the raw key is returned once |
+| `GET` | `/keys` | List keys (`ADMIN`) |
+| `PATCH` | `/keys/{id}/revoke` | Deactivate a key (`ADMIN`) |
+| `DELETE` | `/keys/{id}` | Delete a key (`ADMIN`) |
+
+## Further documents
+
+- [SPEC.md](SPEC.md): system specification (components, data model, behaviour).
+- [DECISIONS.md](DECISIONS.md): architectural decisions and their reasons.
+- [SHARDING.md](SHARDING.md): how the `configurations` collection would be sharded at scale.

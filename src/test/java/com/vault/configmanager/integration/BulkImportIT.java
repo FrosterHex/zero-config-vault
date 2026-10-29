@@ -73,7 +73,11 @@ class BulkImportIT extends MongoIntegrationTest {
                 request(appA, "production", 1), request(appB, "qa", 2), request(appA, "staging", 3))),
                 true, "127.0.0.1", "test"))
                 .isInstanceOf(BulkTransactionException.class)
-                .satisfies(e -> assertThat(((BulkTransactionException) e).getErrors()).isNotEmpty());
+                .satisfies(e -> {
+                    List<Map<String, Object>> errors = ((BulkTransactionException) e).getErrors();
+                    assertThat(errors).hasSize(1);
+                    assertThat(errors.get(0)).containsEntry("index", 1).containsEntry("applicationName", appB);
+                });
 
         assertThat(versions(appA)).isEmpty();
         assertThat(versions(appB)).isEmpty();

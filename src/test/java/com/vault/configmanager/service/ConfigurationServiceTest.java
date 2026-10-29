@@ -335,6 +335,27 @@ class ConfigurationServiceTest {
     }
 
     @Test
+    void bulkImport_atomic_serverRejectsTransaction_reportsReplicaSetNotValidationErrors() {
+        org.springframework.data.mongodb.MongoTransactionManager txManager = mock(org.springframework.data.mongodb.MongoTransactionManager.class);
+        when(txManager.getTransaction(any())).thenReturn(mock(org.springframework.transaction.TransactionStatus.class));
+        ConfigurationService serviceWithTx = new ConfigurationService(configurationRepository, jsonTraverser,
+                hashingService, cacheService, auditService, objectMapper, new ConfigDiffUtil(), txManager);
+        when(configurationRepository.save(any(VaultDocument.class))).thenThrow(new RuntimeException("wrapper",
+                new RuntimeException("Transaction numbers are only allowed on a replica set member or mongos")));
+
+        com.vault.configmanager.dto.request.BulkConfigRequest bulkRequest = new com.vault.configmanager.dto.request.BulkConfigRequest(
+                List.of(new ConfigRequest("app-x", "prod", Map.of("k", "v"), Map.of())));
+
+        com.vault.configmanager.exception.BulkTransactionException ex = assertThrows(
+                com.vault.configmanager.exception.BulkTransactionException.class,
+                () -> serviceWithTx.bulkImport(bulkRequest, true, "127.0.0.1", "key"));
+
+        assertTrue(ex.getMessage().contains("requires a replica set"));
+        assertTrue(ex.getErrors().isEmpty());
+        verify(auditService, never()).log(eq("BULK_IMPORT_ROLLBACK"), anyString(), anyString(), any(), any(), anyBoolean(), any());
+    }
+
+    @Test
     void createConfiguration_searchableTextNeverContainsSecrets() {
         when(configurationRepository.findTopByApplicationNameAndEnvironmentOrderByVersionDesc("user-service", "prod"))
                 .thenReturn(Optional.empty());

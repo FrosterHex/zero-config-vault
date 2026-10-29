@@ -108,4 +108,24 @@ describe("vault api client", () => {
       "/api/vault/audit?limit=10&app=playground&env=development",
     ]);
   });
+  it("delivers named CONFIG_CHANGE stream events to the subscriber", () => {
+    const listeners: Record<string, (e: MessageEvent) => void> = {};
+    const close = vi.fn();
+    class FakeEventSource {
+      onmessage: ((e: MessageEvent) => void) | null = null;
+      constructor(public url: string) {}
+      addEventListener(name: string, fn: (e: MessageEvent) => void) {
+        listeners[name] = fn;
+      }
+      close = close;
+    }
+    vi.stubGlobal("EventSource", FakeEventSource);
+    const seen: unknown[] = [];
+    const off = vaultApi.subscribeToStream("playground", "development", (e) => seen.push(e));
+
+    listeners["CONFIG_CHANGE"](new MessageEvent("CONFIG_CHANGE", { data: '{"version":3}' }));
+    expect(seen).toEqual([{ version: 3 }]);
+    off();
+    expect(close).toHaveBeenCalled();
+  });
 });

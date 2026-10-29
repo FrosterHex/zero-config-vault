@@ -397,7 +397,7 @@ export const vaultApi = {
       eventSource.onopen = () => onOpen();
     }
 
-    eventSource.onmessage = (e) => {
+    const handle = (e: MessageEvent) => {
       try {
         const parsed = JSON.parse(e.data);
         onMessage(parsed);
@@ -405,6 +405,9 @@ export const vaultApi = {
         console.warn("Failed to parse SSE payload", err);
       }
     };
+    // The vault names its events (CONFIG_CHANGE), and named events never reach onmessage.
+    eventSource.onmessage = handle;
+    eventSource.addEventListener("CONFIG_CHANGE", handle as EventListener);
 
     if (onError) {
       eventSource.onerror = onError;

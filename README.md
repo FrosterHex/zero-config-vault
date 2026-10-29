@@ -430,31 +430,3 @@ All `/api/v1/vault/**` endpoints require an `X-API-Key` header.
 | `GET` | `/api/v1/vault/stats/schema` | Engine-level MongoDB $jsonSchema validation rules |
 | `POST` | `/api/v1/vault/keys` | Create scoped API key (Requires `ADMIN` role) |
 | `GET` | `/api/v1/vault/keys` | List active scoped API keys (`ADMIN` role) |
-
----
-
-## 🧪 Automated Verification & Test Harness
-
-Zero-Config Vault includes automated cross-platform test scripts for local integration testing (kept locally on developer machines and git-ignored to prevent credential exposure):
-
-### Run via PowerShell (Windows Local Harness)
-```powershell
-.\verify-vault.ps1
-```
-
-### Run via Bash (Linux / macOS Local Harness)
-```bash
-chmod +x ./verify-vault.sh
-./verify-vault.sh
-```
-
-### The Verification Suite Tests:
-1. **API Gateway & Swagger Health** (HTTP 200 checks).
-2. **Security & Authentication** (401 on missing key, 403 on role mismatch).
-3. **Cryptographic Engine** (Field-level encryption of `secure_settings` in DB).
-4. **Temporal Revisions** (Monotonic increment $v_1 \to v_2$).
-5. **Delta Engine** (Structural key diffing calculation).
-6. **Atomic Rollback** ($v_2 \to v_3$ matching $v_1$ snapshot).
-7. **GridFS Binary Engine** (Upload and byte-for-byte binary download).
-8. **Aggregation Pipeline** (Real-time telemetry calculation).
-9. **Capped Audit Logs** (Verification of sensitive field masking).

@@ -5,11 +5,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.stereotype.Component;
 
 /**
  * Applies the version retention rule once at startup so data written by earlier builds
  * (which dated every superseded version) is brought in line with the current policy.
+ * The exact-date TTL index is switched on only after that pass, so a version that is still protected
+ * but carries an old, already-past expiresAt is cleared before MongoDB can delete it.
  * Idempotent; failures are logged and never block startup.
  */
 @Component
@@ -19,8 +22,14 @@ public class RetentionStartupRunner implements ApplicationRunner {
 
     private final VersionRetentionService versionRetentionService;
 
-    public RetentionStartupRunner(VersionRetentionService versionRetentionService) {
+    private final MongoConfig mongoConfig;
+    private final MongoTemplate mongoTemplate;
+
+    public RetentionStartupRunner(VersionRetentionService versionRetentionService,
+                                  MongoConfig mongoConfig, MongoTemplate mongoTemplate) {
         this.versionRetentionService = versionRetentionService;
+        this.mongoConfig = mongoConfig;
+        this.mongoTemplate = mongoTemplate;
     }
 
     @Override
@@ -31,5 +40,6 @@ public class RetentionStartupRunner implements ApplicationRunner {
         } catch (Exception e) {
             log.warn("Version retention at startup failed: {}", e.getMessage());
         }
+        mongoConfig.ensureExpiryTtlIndex(mongoTemplate.getMongoDatabaseFactory().getMongoDatabase());
     }
 }

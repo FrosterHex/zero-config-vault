@@ -235,6 +235,9 @@ export const authApi = {
   },
 };
 
+const STREAM_RETRY_MIN_MS = 1000;
+const STREAM_RETRY_MAX_MS = 8000;
+
 export const vaultApi = {
   // Configuration Endpoints
   getLatestConfig: (app: string, env: string, masked: boolean = false) =>
@@ -390,12 +393,10 @@ export const vaultApi = {
     onError?: (error: Event) => void,
     onOpen?: () => void
   ): (() => void) => {
-    const eventSource = new EventSource(`${BASE_URL}/stream/${app}/${env}`);
-
-    // Fires on every (re)connect, so callers can resync after a dropped stream.
-    if (onOpen) {
-      eventSource.onopen = () => onOpen();
-    }
+    let eventSource: EventSource | undefined;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let delay = STREAM_RETRY_MIN_MS;
+    let stopped = false;
 
     const handle = (e: MessageEvent) => {
       try {
@@ -405,16 +406,37 @@ export const vaultApi = {
         console.warn("Failed to parse SSE payload", err);
       }
     };
-    // The vault names its events (CONFIG_CHANGE), and named events never reach onmessage.
-    eventSource.onmessage = handle;
-    eventSource.addEventListener("CONFIG_CHANGE", handle as EventListener);
 
-    if (onError) {
-      eventSource.onerror = onError;
-    }
+    const connect = () => {
+      const es = new EventSource(`${BASE_URL}/stream/${app}/${env}`);
+      eventSource = es;
+
+      // Fires on every (re)connect, so callers can resync after a dropped stream.
+      es.onopen = () => {
+        delay = STREAM_RETRY_MIN_MS;
+        onOpen?.();
+      };
+      // The vault names its events (CONFIG_CHANGE), and named events never reach onmessage.
+      es.onmessage = handle;
+      es.addEventListener("CONFIG_CHANGE", handle as EventListener);
+      es.onerror = (err) => {
+        onError?.(err);
+        // A non-200 response (proxy 502/504 during a cold start) closes the stream for good,
+        // so the browser will not retry by itself; reconnect with backoff.
+        if (!stopped && es.readyState === EventSource.CLOSED) {
+          const wait = delay;
+          delay = Math.min(delay * 2, STREAM_RETRY_MAX_MS);
+          timer = setTimeout(connect, wait);
+        }
+      };
+    };
+
+    connect();
 
     return () => {
-      eventSource.close();
+      stopped = true;
+      if (timer !== undefined) clearTimeout(timer);
+      eventSource?.close();
     };
   },
 };

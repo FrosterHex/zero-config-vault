@@ -168,17 +168,19 @@ function ConfigsContent() {
   };
 
   // Handle Rollback
-  const handleRollback = async (targetVersion: number) => {
+  const handleRollback = async (targetVersion: number, app = selectedApp, env = selectedEnv) => {
     setLoading(true);
     setStatusMessage(null);
     try {
-      const resp = await vaultApi.rollbackConfig(selectedApp, selectedEnv, targetVersion);
+      const resp = await vaultApi.rollbackConfig(app, env, targetVersion);
       setStatusMessage({
         type: "success",
         text: `Successfully rolled back to state of v${targetVersion}. Generated new revision v${resp.version}.`,
       });
-      await fetchVersions();
-      await loadConfig(resp.version);
+      if (app === selectedApp && env === selectedEnv) {
+        await fetchVersions();
+        await loadConfig(resp.version);
+      }
     } catch (e: unknown) {
       const err = e as Error;
       setStatusMessage({
@@ -200,8 +202,8 @@ function ConfigsContent() {
   };
 
   const handleResetPlayground = () => {
-    if (confirm(`Reset playground [${selectedEnv}] to v1? This creates a new revision with v1's state.`)) {
-      void handleRollback(1);
+    if (confirm("Reset playground [development] to v1? This creates a new revision with v1's state.")) {
+      void handleRollback(1, "playground", "development");
     }
   };
 

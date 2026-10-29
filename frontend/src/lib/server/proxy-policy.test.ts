@@ -28,6 +28,9 @@ describe("isAllowedPath", () => {
   it("accepts allowlisted paths", () => {
     expect(isAllowedPath(["config", "a", "b"])).toBe(true);
   });
+  it("accepts a space inside a binary filename", () => {
+    expect(isAllowedPath(["binaries", "app", "dev", "my cert.pem"])).toBe(true);
+  });
   it.each([
     [[]],
     [["..", "x"]],

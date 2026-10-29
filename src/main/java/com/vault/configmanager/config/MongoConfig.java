@@ -28,6 +28,8 @@ import java.util.Set;
 @Configuration
 public class MongoConfig {
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(MongoConfig.class);
+
     private final MongoClient mongoClient;
 
     @Value("${spring.data.mongodb.database:secure_config_vault}")
@@ -169,8 +171,43 @@ public class MongoConfig {
                 // Non-blocking legacy index cleanup
             }
 
+            // 6. Exact-date TTL index on expiresAt (expireAfterSeconds = 0)
+            ensureExpiryTtlIndex(db);
+
         } catch (Exception e) {
             // Allows build/tests and offline startup without blocking
+        }
+    }
+
+    /**
+     * Ensures {expiresAt: 1} is a TTL index with expireAfterSeconds 0, so each version is deleted at the
+     * exact date stored in expiresAt. An older index with a different expireAfterSeconds is converted in
+     * place with collMod. Never throws.
+     */
+    public void ensureExpiryTtlIndex(MongoDatabase db) {
+        try {
+            Document existing = null;
+            for (Document idx : db.getCollection("configurations").listIndexes()) {
+                Document key = idx.get("key", Document.class);
+                if (key != null && key.size() == 1 && key.containsKey("expiresAt")) {
+                    existing = idx;
+                    break;
+                }
+            }
+            if (existing == null) {
+                db.getCollection("configurations").createIndex(new Document("expiresAt", 1),
+                        new com.mongodb.client.model.IndexOptions()
+                                .expireAfter(0L, java.util.concurrent.TimeUnit.SECONDS));
+            } else {
+                Number seconds = (Number) existing.get("expireAfterSeconds");
+                if (seconds == null || seconds.longValue() != 0L) {
+                    db.runCommand(new Document("collMod", "configurations")
+                            .append("index", new Document("keyPattern", new Document("expiresAt", 1))
+                                    .append("expireAfterSeconds", 0)));
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Could not ensure expiresAt TTL index: {}", e.getMessage());
         }
     }
 

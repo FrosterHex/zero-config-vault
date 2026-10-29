@@ -198,9 +198,27 @@ public class MongoConfig {
             } else {
                 Number seconds = (Number) existing.get("expireAfterSeconds");
                 if (seconds == null || seconds.longValue() != 0L) {
-                    db.runCommand(new Document("collMod", "configurations")
-                            .append("index", new Document("keyPattern", new Document("expiresAt", 1))
-                                    .append("expireAfterSeconds", 0)));
+                    try {
+                        db.runCommand(new Document("collMod", "configurations")
+                                .append("index", new Document("keyPattern", new Document("expiresAt", 1))
+                                        .append("expireAfterSeconds", 0)));
+                        log.info("Converted expiresAt TTL index to expireAfterSeconds 0 with collMod");
+                    } catch (com.mongodb.MongoCommandException e) {
+                        if (e.getErrorCode() != 13) {
+                            throw e;
+                        }
+                        // collMod is not granted (for example an Atlas readWrite user): rebuild the index instead
+                        try {
+                            db.getCollection("configurations").dropIndex(existing.getString("name"));
+                            db.getCollection("configurations").createIndex(new Document("expiresAt", 1),
+                                    new com.mongodb.client.model.IndexOptions()
+                                            .expireAfter(0L, java.util.concurrent.TimeUnit.SECONDS));
+                            log.info("collMod not permitted; recreated expiresAt TTL index with expireAfterSeconds 0");
+                        } catch (Exception fallback) {
+                            log.error("collMod not permitted and the drop/recreate fallback failed: {}",
+                                    fallback.getMessage());
+                        }
+                    }
                 }
             }
         } catch (Exception e) {

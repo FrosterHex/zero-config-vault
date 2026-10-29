@@ -111,9 +111,12 @@ describe("vault api client", () => {
   it("delivers named CONFIG_CHANGE stream events to the subscriber", () => {
     const listeners: Record<string, (e: MessageEvent) => void> = {};
     const close = vi.fn();
+    let instance: FakeEventSource | undefined;
     class FakeEventSource {
       onmessage: ((e: MessageEvent) => void) | null = null;
-      constructor(public url: string) {}
+      constructor(public url: string) {
+        instance = this;
+      }
       addEventListener(name: string, fn: (e: MessageEvent) => void) {
         listeners[name] = fn;
       }
@@ -125,6 +128,13 @@ describe("vault api client", () => {
 
     listeners["CONFIG_CHANGE"](new MessageEvent("CONFIG_CHANGE", { data: '{"version":3}' }));
     expect(seen).toEqual([{ version: 3 }]);
+    expect(seen).toHaveLength(1);
+
+    // An unnamed event arrives through onmessage; each event fires onMessage exactly once.
+    instance!.onmessage!(new MessageEvent("message", { data: '{"version":4}' }));
+    expect(seen).toEqual([{ version: 3 }, { version: 4 }]);
+    expect(seen).toHaveLength(2);
+
     off();
     expect(close).toHaveBeenCalled();
   });

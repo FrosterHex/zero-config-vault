@@ -115,6 +115,7 @@ describe("vault api client", () => {
     class FakeEventSource {
       onmessage: ((e: MessageEvent) => void) | null = null;
       constructor(public url: string) {
+        // eslint-disable-next-line @typescript-eslint/no-this-alias
         instance = this;
       }
       addEventListener(name: string, fn: (e: MessageEvent) => void) {
@@ -137,5 +138,88 @@ describe("vault api client", () => {
 
     off();
     expect(close).toHaveBeenCalled();
+  });
+
+  describe("stream reconnect", () => {
+    class FakeES {
+      static CLOSED = 2;
+      static instances: FakeES[] = [];
+      readyState = 0;
+      onopen: (() => void) | null = null;
+      onerror: ((e: Event) => void) | null = null;
+      onmessage: ((e: MessageEvent) => void) | null = null;
+      close = vi.fn();
+      constructor(public url: string) {
+        FakeES.instances.push(this);
+      }
+      addEventListener() {}
+    }
+    beforeEach(() => {
+      FakeES.instances = [];
+      vi.stubGlobal("EventSource", FakeES);
+    });
+
+    it("resubscribes with doubling backoff after the stream closes, and resets on open", () => {
+      const onError = vi.fn();
+      vaultApi.subscribeToStream("a", "e", () => {}, onError);
+      expect(FakeES.instances).toHaveLength(1);
+
+      FakeES.instances[0].readyState = FakeES.CLOSED;
+      FakeES.instances[0].onerror!(new Event("error"));
+      expect(onError).toHaveBeenCalledTimes(1);
+      vi.advanceTimersByTime(999);
+      expect(FakeES.instances).toHaveLength(1);
+      vi.advanceTimersByTime(1);
+      expect(FakeES.instances).toHaveLength(2);
+
+      FakeES.instances[1].readyState = FakeES.CLOSED;
+      FakeES.instances[1].onerror!(new Event("error"));
+      vi.advanceTimersByTime(1999);
+      expect(FakeES.instances).toHaveLength(2);
+      vi.advanceTimersByTime(1);
+      expect(FakeES.instances).toHaveLength(3);
+
+      // Open resets the backoff back to 1 s.
+      FakeES.instances[2].onopen!();
+      FakeES.instances[2].readyState = FakeES.CLOSED;
+      FakeES.instances[2].onerror!(new Event("error"));
+      vi.advanceTimersByTime(1000);
+      expect(FakeES.instances).toHaveLength(4);
+    });
+
+    it("caps the backoff at 8 seconds", () => {
+      vaultApi.subscribeToStream("a", "e", () => {});
+      for (let i = 0; i < 5; i++) {
+        const es = FakeES.instances[FakeES.instances.length - 1];
+        es.readyState = FakeES.CLOSED;
+        es.onerror!(new Event("error"));
+        vi.advanceTimersByTime(8000);
+      }
+      const before = FakeES.instances.length;
+      FakeES.instances[before - 1].readyState = FakeES.CLOSED;
+      FakeES.instances[before - 1].onerror!(new Event("error"));
+      vi.advanceTimersByTime(7999);
+      expect(FakeES.instances).toHaveLength(before);
+      vi.advanceTimersByTime(1);
+      expect(FakeES.instances).toHaveLength(before + 1);
+    });
+
+    it("does not reconnect while the browser is still retrying itself", () => {
+      vaultApi.subscribeToStream("a", "e", () => {});
+      FakeES.instances[0].readyState = 0;
+      FakeES.instances[0].onerror!(new Event("error"));
+      vi.advanceTimersByTime(20000);
+      expect(FakeES.instances).toHaveLength(1);
+    });
+
+    it("unsubscribing during the wait cancels the reconnect", () => {
+      const off = vaultApi.subscribeToStream("a", "e", () => {});
+      FakeES.instances[0].readyState = FakeES.CLOSED;
+      FakeES.instances[0].onerror!(new Event("error"));
+      off();
+      vi.advanceTimersByTime(20000);
+      expect(FakeES.instances).toHaveLength(1);
+      expect(FakeES.instances[0].close).toHaveBeenCalled();
+    });
   });
 });

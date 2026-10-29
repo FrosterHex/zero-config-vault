@@ -44,9 +44,31 @@ describe("route config", () => {
   });
 });
 
+describe("response caching headers", () => {
+  it("marks proxied responses private, no-store and varying by cookie", async () => {
+    const res = await GET(new Request(`${ORIGIN}/api/vault/config/a/b`), ctx("config", "a", "b"));
+    expect(res.headers.get("cache-control")).toBe("private, no-store");
+    expect(res.headers.get("vary")).toBe("Cookie");
+  });
+  it("keeps an upstream Cache-Control but still varies by cookie", async () => {
+    fetchMock.mockImplementation(
+      async () => new Response("{}", { status: 200, headers: { "cache-control": "no-cache" } }),
+    );
+    const res = await GET(new Request(`${ORIGIN}/api/vault/config/a/b`), ctx("config", "a", "b"));
+    expect(res.headers.get("cache-control")).toBe("no-cache");
+    expect(res.headers.get("vary")).toBe("Cookie");
+  });
+});
+
 describe("path policy", () => {
-  it("rejects a segment containing a space", () => {
-    expect(isAllowedPath(["config", "my app"])).toBe(false);
+  it("allows a space in a segment and sends it percent-encoded upstream", async () => {
+    expect(isAllowedPath(["binaries", "app", "dev", "my cert.pem"])).toBe(true);
+    const res = await GET(
+      new Request(`${ORIGIN}/api/vault/binaries/app/dev/my%20cert.pem`),
+      ctx("binaries", "app", "dev", "my cert.pem"),
+    );
+    expect(res.status).toBe(200);
+    expect(fetchMock.mock.calls[0][0]).toContain("/binaries/app/dev/my%20cert.pem");
   });
   it("percent-encodes non-ASCII segments", async () => {
     await GET(new Request(`${ORIGIN}/api/vault/config/%C3%A4`), ctx("config", "\u00e4"));

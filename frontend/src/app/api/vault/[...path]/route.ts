@@ -84,6 +84,9 @@ async function proxy(req: Request, { params }: Ctx): Promise<Response> {
     const value = upstream.headers.get(name);
     if (value) out.set(name, value);
   }
+  // Responses differ by role, so shared caches must not reuse them across visitors.
+  if (!out.has("cache-control")) out.set("cache-control", "private, no-store");
+  out.set("vary", "Cookie");
   return new Response(upstream.body, { status: upstream.status, headers: out });
 }
 

@@ -171,9 +171,6 @@ public class MongoConfig {
                 // Non-blocking legacy index cleanup
             }
 
-            // 6. Exact-date TTL index on expiresAt (expireAfterSeconds = 0)
-            ensureExpiryTtlIndex(db);
-
         } catch (Exception e) {
             // Allows build/tests and offline startup without blocking
         }

@@ -50,7 +50,11 @@ public class VersionRetentionService {
                 new Query(scope).with(Sort.by(Sort.Direction.DESC, "version")).skip(retainCount).limit(1),
                 VaultDocument.class);
         if (boundary == null) {
-            return; // fewer than retainCount + 1 versions: nothing can expire
+            // fewer than retainCount + 1 versions: all are protected, clear any leftover date
+            mongoTemplate.updateMulti(
+                    new Query(new Criteria().andOperator(scope, Criteria.where("expiresAt").ne(null))),
+                    new Update().unset("expiresAt"), VaultDocument.class);
+            return;
         }
         int boundaryVersion = boundary.getVersion();
 

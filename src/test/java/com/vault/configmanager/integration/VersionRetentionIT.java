@@ -30,6 +30,9 @@ class VersionRetentionIT extends MongoIntegrationTest {
     @Autowired
     private MongoConfig mongoConfig;
 
+    @Autowired
+    private com.vault.configmanager.config.RetentionStartupRunner runner;
+
     private void write(String app, int times) {
         for (int i = 0; i < times; i++) {
             Map<String, Object> payload = new HashMap<>();
@@ -101,17 +104,21 @@ class VersionRetentionIT extends MongoIntegrationTest {
     void pastExpiryIsDeletedByMongo() throws Exception {
         MongoDatabase admin = mongoTemplate.getMongoDatabaseFactory().getMongoDatabase("admin");
         admin.runCommand(new Document("setParameter", 1).append("ttlMonitorSleepSecs", 1));
-        String app = uniqueApp("ret");
-        write(app, 2);
-        mongoTemplate.updateFirst(
-                new Query(Criteria.where("applicationName").is(app).and("version").is(1)),
-                Update.update("expiresAt", LocalDateTime.now().minusMinutes(1)), VaultDocument.class);
-        long deadline = System.currentTimeMillis() + 30_000;
-        while (System.currentTimeMillis() < deadline
-                && versions(app).stream().anyMatch(d -> d.getVersion() == 1)) {
-            Thread.sleep(500);
+        try {
+            String app = uniqueApp("ret");
+            write(app, 2);
+            mongoTemplate.updateFirst(
+                    new Query(Criteria.where("applicationName").is(app).and("version").is(1)),
+                    Update.update("expiresAt", LocalDateTime.now().minusMinutes(1)), VaultDocument.class);
+            long deadline = System.currentTimeMillis() + 30_000;
+            while (System.currentTimeMillis() < deadline
+                    && versions(app).stream().anyMatch(d -> d.getVersion() == 1)) {
+                Thread.sleep(500);
+            }
+            assertThat(versions(app)).extracting(VaultDocument::getVersion).containsExactly(2);
+        } finally {
+            admin.runCommand(new Document("setParameter", 1).append("ttlMonitorSleepSecs", 60));
         }
-        assertThat(versions(app)).extracting(VaultDocument::getVersion).containsExactly(2);
     }
 
     @Test
@@ -122,10 +129,36 @@ class VersionRetentionIT extends MongoIntegrationTest {
         }
         mongoTemplate.getCollection("configurations").createIndex(new Document("expiresAt", 1),
                 new com.mongodb.client.model.IndexOptions().expireAfter(7776000L, java.util.concurrent.TimeUnit.SECONDS));
-        mongoConfig.ensureExpiryTtlIndex(mongoTemplate.getMongoDatabaseFactory().getMongoDatabase());
-        Document after = ttlIndex();
-        assertThat(after).isNotNull();
-        assertThat(((Number) after.get("expireAfterSeconds")).longValue()).isZero();
+        try {
+            mongoConfig.ensureExpiryTtlIndex(mongoTemplate.getMongoDatabaseFactory().getMongoDatabase());
+            Document after = ttlIndex();
+            assertThat(after).isNotNull();
+            assertThat(((Number) after.get("expireAfterSeconds")).longValue()).isZero();
+        } finally {
+            mongoConfig.ensureExpiryTtlIndex(mongoTemplate.getMongoDatabaseFactory().getMongoDatabase());
+        }
+    }
+
+    @Test
+    void startupRunner_clearsProtectedPastExpiryBeforeSwitchingIndex() {
+        String app = uniqueApp("ret");
+        write(app, 3);
+        mongoTemplate.updateFirst(
+                new Query(Criteria.where("applicationName").is(app).and("version").is(3)),
+                Update.update("expiresAt", LocalDateTime.now().minusDays(1)), VaultDocument.class);
+        Document idx = ttlIndex();
+        if (idx != null) {
+            mongoTemplate.getCollection("configurations").dropIndex(idx.getString("name"));
+        }
+        mongoTemplate.getCollection("configurations").createIndex(new Document("expiresAt", 1),
+                new com.mongodb.client.model.IndexOptions().expireAfter(7776000L, java.util.concurrent.TimeUnit.SECONDS));
+        try {
+            runner.run(null);
+            assertThat(version(app, 3).getExpiresAt()).isNull();
+            assertThat(((Number) ttlIndex().get("expireAfterSeconds")).longValue()).isZero();
+        } finally {
+            mongoConfig.ensureExpiryTtlIndex(mongoTemplate.getMongoDatabaseFactory().getMongoDatabase());
+        }
     }
 
     @Test

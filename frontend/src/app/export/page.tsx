@@ -84,7 +84,7 @@ export default function ExportPage() {
       {/* 3D Cyber Atmosphere Background Elements */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden -z-10 bg-grid-cyber">
         <div className="absolute top-1/4 left-1/3 h-80 w-80 rounded-full bg-purple-600/15 blur-[130px]" />
-        <div className="absolute top-1/3 right-1/4 h-80 w-80 rounded-full bg-indigo-600/10 blur-[120px]" />
+        <div className="absolute top-1/3 right-1/4 h-80 w-80 rounded-full bg-mint-600/10 blur-[120px]" />
       </div>
 
       <AccessibleFade delay={0}>
@@ -96,10 +96,10 @@ export default function ExportPage() {
                 Multi-Format Transformation Engine
               </span>
             </div>
-            <h1 className="font-['Cormorant_Garamond',serif] text-4xl font-bold tracking-tight text-white">
+            <h1 className="font-display text-4xl font-bold tracking-tight text-white">
               Export Studio
             </h1>
-            <p className="text-xs sm:text-sm text-slate-400 font-['Montserrat',sans-serif] font-light mt-1 max-w-2xl">
+            <p className="text-xs sm:text-sm text-slate-400 font-sans font-light mt-1 max-w-2xl">
               Transform live Vault configuration documents on-the-fly into structured JSON, YAML, or flat .env files
               for containerized microservices and CI/CD pipelines.
             </p>

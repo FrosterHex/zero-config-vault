@@ -6,7 +6,7 @@ import { useMotionAccessibility } from "@/components/motion/MotionProvider";
 interface GlassCard3DProps {
   children: React.ReactNode;
   className?: string;
-  glowColor?: "indigo" | "cyan" | "emerald" | "purple";
+  glowColor?: "mint" | "cyan" | "emerald" | "purple";
   /**
    * Tilt toward the cursor. Off by default: a card that moves under the pointer makes its
    * buttons, inputs and text hard to hit and read, so only decorative cards should opt in.
@@ -18,7 +18,7 @@ interface GlassCard3DProps {
 export function GlassCard3D({
   children,
   className = "",
-  glowColor = "indigo",
+  glowColor = "mint",
   tilt = false,
   intensity = 15,
 }: GlassCard3DProps) {
@@ -31,7 +31,7 @@ export function GlassCard3D({
   const [glarePosition, setGlarePosition] = useState({ x: 50, y: 50, opacity: 0 });
 
   const glowStyles = {
-    indigo: "hover:border-indigo-500/40 hover:shadow-[0_12px_40px_rgba(99,102,241,0.2)]",
+    mint: "hover:border-mint-400/30 hover:shadow-[0_12px_40px_rgba(93,240,168,0.14)]",
     cyan: "hover:border-cyan-500/40 hover:shadow-[0_12px_40px_rgba(6,182,212,0.2)]",
     emerald: "hover:border-emerald-500/40 hover:shadow-[0_12px_40px_rgba(16,185,129,0.2)]",
     purple: "hover:border-purple-500/40 hover:shadow-[0_12px_40px_rgba(168,85,247,0.2)]",
@@ -69,7 +69,8 @@ export function GlassCard3D({
   return (
     <div
       style={{ perspective: 1200 }}
-      className="relative transition-transform duration-200"
+      // h-full: the wrapper must take the column's height, or a card given h-full (editor, ledger) collapses to its content
+      className="relative h-full transition-transform duration-200"
     >
       <div
         ref={cardRef}
@@ -82,7 +83,8 @@ export function GlassCard3D({
           transformStyle: "preserve-3d",
           transition: "transform 0.15s ease-out, box-shadow 0.3s ease, border-color 0.3s ease",
         }}
-        className={`relative overflow-hidden rounded-2xl border border-white/10 bg-slate-900/50 backdrop-blur-xl transition-all duration-300 ${glowStyles[glowColor]} ${className}`}
+        // Glass card from the design: --glass background, --line border, --radius corners
+        className={`relative overflow-hidden rounded-[18px] border border-[rgba(150,175,230,0.12)] bg-[rgba(12,18,38,0.55)] backdrop-blur-[14px] transition-all duration-300 hover:bg-[rgba(16,24,48,0.65)] ${glowStyles[glowColor]} ${className}`}
       >
         {/* Dynamic Specular Cursor Glare Layer */}
         {!shouldReduceMotion && (
@@ -99,7 +101,8 @@ export function GlassCard3D({
         <div className="pointer-events-none absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent" />
 
         {/* Content Container */}
-        <div className="relative z-10">{children}</div>
+        {/* h-full so panels given a fixed height (editor, revision ledger, diff) fill the card */}
+        <div className="relative z-10 h-full">{children}</div>
       </div>
     </div>
   );

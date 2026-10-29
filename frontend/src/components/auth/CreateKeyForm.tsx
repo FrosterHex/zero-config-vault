@@ -14,7 +14,7 @@ const splitList = (value: string) =>
     .filter(Boolean);
 
 const inputClass =
-  "h-8 w-full rounded-lg border border-white/10 bg-black/40 px-3 text-xs font-mono text-white placeholder-slate-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500";
+  "h-8 w-full rounded-lg border border-white/10 bg-black/40 px-3 text-xs font-mono text-white placeholder-slate-600 focus:border-mint-500 focus:outline-none focus:ring-1 focus:ring-mint-500";
 
 /** Admin form for issuing a scoped API key. The raw key is shown once, right after creation. */
 export function CreateKeyForm({ onCreated }: { onCreated: () => void }) {
@@ -70,8 +70,8 @@ export function CreateKeyForm({ onCreated }: { onCreated: () => void }) {
       className="space-y-4 rounded-2xl border border-white/10 bg-slate-900/60 p-5 backdrop-blur-md"
     >
       <div className="flex items-center gap-2 border-b border-white/10 pb-3">
-        <KeyRound className="h-4 w-4 text-indigo-400" aria-hidden="true" />
-        <h2 className="font-['Montserrat',sans-serif] text-xs font-bold uppercase tracking-wider text-white">
+        <KeyRound className="h-4 w-4 text-mint-400" aria-hidden="true" />
+        <h2 className="font-sans text-xs font-bold uppercase tracking-wider text-white">
           Issue a scoped API key
         </h2>
       </div>
@@ -105,9 +105,9 @@ export function CreateKeyForm({ onCreated }: { onCreated: () => void }) {
             return (
               <label
                 key={role}
-                className={`inline-flex cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-mono transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-indigo-500 ${
+                className={`inline-flex cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-mono transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-mint-500 ${
                   checked
-                    ? "border-indigo-500/50 bg-indigo-500/20 text-indigo-200"
+                    ? "border-mint-500/50 bg-mint-500/20 text-mint-200"
                     : "border-white/10 bg-white/5 text-slate-400 hover:text-white"
                 }`}
               >
@@ -132,7 +132,7 @@ export function CreateKeyForm({ onCreated }: { onCreated: () => void }) {
         <button
           type="submit"
           disabled={pending || roles.length === 0}
-          className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 text-xs font-semibold text-white shadow-md shadow-indigo-600/20 transition-colors hover:bg-indigo-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-mint-600 px-3.5 text-xs font-semibold text-white shadow-md shadow-mint-600/20 transition-colors hover:bg-mint-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mint-400 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Plus className="h-3.5 w-3.5" aria-hidden="true" />}
           <span>{pending ? "Creating…" : "Create key"}</span>

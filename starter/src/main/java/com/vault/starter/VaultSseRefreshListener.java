@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class VaultSseRefreshListener implements SmartLifecycle {
 
     private static final Logger log = LoggerFactory.getLogger(VaultSseRefreshListener.class);
+    private static final String CONFIG_CHANGE_EVENT = "CONFIG_CHANGE";
 
     private final VaultProperties vaultProperties;
     private final ApplicationEventPublisher eventPublisher;
@@ -33,6 +34,8 @@ public class VaultSseRefreshListener implements SmartLifecycle {
 
     private Thread listenerThread;
     private HttpClient httpClient;
+    // Name of the SSE event being read; only touched by the listener thread
+    private String currentEventName;
 
     public VaultSseRefreshListener(VaultProperties vaultProperties,
                                    ApplicationEventPublisher eventPublisher) {
@@ -89,12 +92,10 @@ public class VaultSseRefreshListener implements SmartLifecycle {
 
                 if (response.statusCode() == 200) {
                     try (BufferedReader reader = new BufferedReader(new InputStreamReader(response.body()))) {
+                        currentEventName = null;
                         String line;
                         while (running.get() && (line = reader.readLine()) != null) {
-                            if (line.startsWith("data:")) {
-                                String jsonData = line.substring(5).trim();
-                                handleSseMessage(jsonData);
-                            }
+                            handleLine(line);
                         }
                     }
                 } else {
@@ -118,13 +119,27 @@ public class VaultSseRefreshListener implements SmartLifecycle {
         }
     }
 
+    /**
+     * Processes one line of the SSE stream. Only CONFIG_CHANGE events describe a new configuration
+     * version; the INIT event sent on connect is ignored. A blank line ends the current event.
+     */
+    void handleLine(String line) {
+        if (line.isEmpty()) {
+            currentEventName = null;
+        } else if (line.startsWith("event:")) {
+            currentEventName = line.substring(6).trim();
+        } else if (line.startsWith("data:") && CONFIG_CHANGE_EVENT.equals(currentEventName)) {
+            handleSseMessage(line.substring(5).trim());
+        }
+    }
+
     private void handleSseMessage(String json) {
         try {
             JsonNode root = objectMapper.readTree(json);
             String app = root.has("applicationName") ? root.get("applicationName").asText() : vaultProperties.getApplicationName();
             String env = root.has("environment") ? root.get("environment").asText() : vaultProperties.getEnvironment();
             int version = root.has("version") ? root.get("version").asInt() : 0;
-            String action = root.has("action") ? root.get("action").asText() : "UPDATE";
+            String action = root.has("eventType") ? root.get("eventType").asText() : "UPDATE";
 
             log.info("Received live configuration update from Vault via MongoDB Change Stream: app={}, env={}, v={}, action={}",
                     app, env, version, action);

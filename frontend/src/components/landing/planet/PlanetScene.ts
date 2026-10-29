@@ -143,8 +143,18 @@ export class PlanetScene {
 
     const w = window.innerWidth;
     const h = window.innerHeight;
+    const dpr = Math.min(window.devicePixelRatio, 2);
 
-    const torusComposer = new EffectComposer(renderer);
+    // 8-bit render targets, as in three r0.143. r0.186 defaults to half-float targets, which keep the
+    // planet shader's slightly negative ocean noise; the gamma pass turns those into NaN and the bloom
+    // blur spreads the NaN over the whole frame (a black screen). 8-bit targets clamp them to 0.
+    const makeComposer = () =>
+      new EffectComposer(
+        renderer,
+        new THREE.WebGLRenderTarget(w * dpr, h * dpr, { type: THREE.UnsignedByteType })
+      );
+
+    const torusComposer = makeComposer();
     torusComposer.renderToScreen = false;
     torusComposer.addPass(new RenderPass(this.scene, camera));
     torusComposer.addPass(new ShaderPass(GammaCorrectionShader));
@@ -152,7 +162,7 @@ export class PlanetScene {
     torusComposer.addPass(new ShaderPass(CopyShader));
     this.torusComposer = torusComposer;
 
-    const bloomComposer = new EffectComposer(renderer);
+    const bloomComposer = makeComposer();
     bloomComposer.renderToScreen = false;
     bloomComposer.addPass(new RenderPass(this.scene, camera));
     bloomComposer.addPass(new UnrealBloomPass(new THREE.Vector2(w, h), 0.5, 0.6, 0));
@@ -172,10 +182,11 @@ export class PlanetScene {
       },
       "tDiffuse"
     );
-    // ShaderPass clones its uniforms, so the textures are wired on the pass, not the definition.
-    finalPass.uniforms.bloomTexture.value = bloomComposer.renderTarget1.texture;
-    finalPass.uniforms.torusTexture.value = torusComposer.renderTarget1.texture;
-    const finalComposer = new EffectComposer(renderer);
+    // ShaderPass clones its uniforms, so the bloom/torus textures are wired on the pass. They are set
+    // every frame in tick() from each composer's readBuffer (its finished output): a fixed
+    // renderTarget1 would alternate between finished and half-finished frames in the bloom composer,
+    // which swaps buffers an odd number of times per frame.
+    const finalComposer = makeComposer();
     finalComposer.addPass(new RenderPass(this.scene, camera));
     finalComposer.addPass(finalPass);
     this.finalComposer = finalComposer;
@@ -529,6 +540,10 @@ export class PlanetScene {
     this.torusComposer?.render();
     camera.layers.set(LAYERS.BLOOM_SCENE);
     this.bloomComposer?.render();
+    if (this.finalPass && this.torusComposer && this.bloomComposer) {
+      this.finalPass.uniforms.torusTexture.value = this.torusComposer.readBuffer.texture;
+      this.finalPass.uniforms.bloomTexture.value = this.bloomComposer.readBuffer.texture;
+    }
     camera.layers.set(LAYERS.ENTIRE_SCENE);
     this.finalComposer?.render();
   };

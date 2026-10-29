@@ -7,6 +7,11 @@ interface GlassCard3DProps {
   children: React.ReactNode;
   className?: string;
   glowColor?: "indigo" | "cyan" | "emerald" | "purple";
+  /**
+   * Tilt toward the cursor. Off by default: a card that moves under the pointer makes its
+   * buttons, inputs and text hard to hit and read, so only decorative cards should opt in.
+   */
+  tilt?: boolean;
   intensity?: number;
 }
 
@@ -14,10 +19,12 @@ export function GlassCard3D({
   children,
   className = "",
   glowColor = "indigo",
+  tilt = false,
   intensity = 15,
 }: GlassCard3DProps) {
   const cardRef = useRef<HTMLDivElement>(null);
-  const { shouldReduceMotion } = useMotionAccessibility();
+  const { shouldReduceMotion: prefersReducedMotion } = useMotionAccessibility();
+  const shouldReduceMotion = prefersReducedMotion || !tilt;
 
   const [rotateX, setRotateX] = useState(0);
   const [rotateY, setRotateY] = useState(0);

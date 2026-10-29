@@ -24,9 +24,9 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Zero-Config Vault | Enterprise NoSQL Configuration Management",
+  title: "Zero-Config Vault | Configuration and Secrets on MongoDB",
   description:
-    "Zero-knowledge temporal configuration repository with MongoDB field-level encryption, change streams, and audit logging.",
+    "Versioned configuration and secret store built on MongoDB, with envelope encryption, change streams and audit logging.",
 };
 
 import { AppProviders } from "@/components/providers/AppProviders";

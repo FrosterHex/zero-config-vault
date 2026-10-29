@@ -86,11 +86,11 @@ export default function AuditPage() {
               </span>
             </div>
             <h1 className="font-['Cormorant_Garamond',serif] text-4xl font-bold tracking-tight text-white">
-              Tamper-Proof Audit Log
+              Audit Log
             </h1>
             <p className="text-xs sm:text-sm text-slate-400 font-['Montserrat',sans-serif] font-light mt-1 max-w-2xl">
-              Immutable circular logging for zero-trust compliance. All secret fields (passwords, tokens, private keys)
-              are dynamically masked in-memory to prevent persistent credential leakage.
+              Recent operations from an append-only capped collection: entries cannot be deleted one by one, and the
+              oldest are discarded once it reaches 50 MB. Secret values are masked before an entry is written.
             </p>
           </div>
 

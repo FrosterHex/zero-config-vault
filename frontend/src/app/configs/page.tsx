@@ -241,7 +241,7 @@ function ConfigsContent() {
             </h1>
             <p className="text-xs md:text-sm text-slate-400 max-w-2xl font-['Montserrat',sans-serif] font-light mt-1">
               Interactive JSON tree viewer with automated envelope encryption, live secret masking,
-              immutable temporal version history, and zero-downtime rollback controls.
+              version history, and rollback.
             </p>
           </div>
 

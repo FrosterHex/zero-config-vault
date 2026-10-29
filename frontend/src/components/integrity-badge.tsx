@@ -34,7 +34,7 @@ export function IntegrityBadge({ hash, verified = true }: IntegrityBadgeProps) {
       <div className="flex items-center gap-1.5 text-emerald-400">
         <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
         <span className="font-mono text-[10px] font-semibold uppercase tracking-wider">
-          {verified ? "SHA-512 Enclave" : "Pending"}
+          {verified ? "SHA-512" : "Pending"}
         </span>
       </div>
 

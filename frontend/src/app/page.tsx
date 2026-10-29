@@ -25,9 +25,17 @@ import {
 } from "lucide-react";
 
 import { useVault } from "@/context/VaultContext";
+import { VAULT_STATUS_DISPLAY } from "@/components/dashboard/VaultStatusText";
+
+const STATUS_BADGE = {
+  ok: "border-emerald-500/30 bg-emerald-500/10 text-emerald-400",
+  wait: "border-sky-500/30 bg-sky-500/10 text-sky-300",
+  error: "border-rose-500/30 bg-rose-500/10 text-rose-300",
+} as const;
 
 export default function Home() {
-  const { stats, loadingStats, triggerRefresh } = useVault();
+  const { stats, loadingStats, triggerRefresh, vaultStatus } = useVault();
+  const status = VAULT_STATUS_DISPLAY[vaultStatus];
 
   // Show a dash until real numbers arrive, never invented ones.
   const totalApps = stats?.totalApplications ?? "—";
@@ -56,12 +64,18 @@ export default function Home() {
             {/* Left Column: Vision & Quick Access */}
             <div className="lg:col-span-7 space-y-6">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-[11px] font-mono font-semibold text-emerald-400">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping" />
-                  MongoDB 7.0 Replica Set (rs0) Live
+                <span
+                  role="status"
+                  className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-mono font-semibold ${STATUS_BADGE[status.tone]}`}
+                >
+                  <span
+                    className={`h-1.5 w-1.5 rounded-full bg-current ${status.tone === "ok" ? "motion-safe:animate-ping" : ""}`}
+                    aria-hidden="true"
+                  />
+                  {status.label}
                 </span>
                 <span className="rounded-full border border-indigo-500/30 bg-indigo-500/10 px-3 py-1 text-[11px] font-mono text-indigo-400">
-                  Hardware Envelope Encryption
+                  AES-256-GCM envelope encryption
                 </span>
               </div>
 
@@ -73,8 +87,9 @@ export default function Home() {
                   </span>
                 </h1>
                 <p className="mt-3 text-sm sm:text-base text-slate-300 font-['Montserrat',sans-serif] font-light max-w-xl leading-relaxed">
-                  Next-generation centralized configuration and secret plane. Powered exclusively by MongoDB:
-                  immutable GitOps temporal versioning, AES-256-GCM envelope cryptography, and real-time oplog Change Streams.
+                  Configuration and secrets for microservices, stored only in MongoDB: a new version for every
+                  change with one-click rollback, AES-256-GCM envelope encryption, and live updates from MongoDB
+                  change streams.
                 </p>
               </div>
 
@@ -109,15 +124,15 @@ export default function Home() {
               <div className="flex flex-wrap items-center gap-4 pt-4 border-t border-white/10 text-xs font-mono text-slate-400">
                 <div className="flex items-center gap-1.5">
                   <ShieldCheck className="h-4 w-4 text-emerald-400" />
-                  <span>SHA-512 Verification</span>
+                  <span>SHA-512 integrity hash per version</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <Activity className="h-4 w-4 text-cyan-400" />
-                  <span>SSE Oplog Stream Active</span>
+                  <span>Live updates over Server-Sent Events</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <Cpu className="h-4 w-4 text-purple-400" />
-                  <span>Zero Lombok Engine</span>
+                  <span>Atomic bulk import (transactions)</span>
                 </div>
               </div>
             </div>
@@ -138,7 +153,7 @@ export default function Home() {
       {/* 3D Glassmorphism Interactive KPI Cards */}
       <AccessibleFade delay={0.08}>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <GlassCard3D glowColor="indigo">
+          <GlassCard3D tilt glowColor="indigo">
             <div className="p-5 space-y-3">
               <div className="flex items-center justify-between text-slate-400">
                 <span className="text-[11px] font-mono uppercase tracking-wider">Managed Applications</span>
@@ -149,17 +164,19 @@ export default function Home() {
               <div className="flex items-baseline gap-2">
                 <span className="text-3xl font-extrabold text-white font-mono">{totalApps}</span>
                 <span className="text-xs text-emerald-400 font-mono flex items-center">
-                  <TrendingUp className="h-3 w-3 mr-0.5" /> 100% Online
+                  <TrendingUp className="h-3 w-3 mr-0.5" aria-hidden="true" /> with stored versions
                 </span>
               </div>
-              <div className="text-[10px] font-mono text-slate-500 pt-2 border-t border-white/5 flex justify-between">
-                <span>Multi-Tenant Cluster</span>
-                <span>Tier 0 - Tier 2</span>
+              <div className="text-[10px] font-mono text-slate-500 pt-2 border-t border-white/5 flex justify-between gap-2">
+                <span>Latest change</span>
+                <span className="truncate">
+                  {stats?.mostRecentApp ? `${stats.mostRecentApp} [${stats.mostRecentEnv}]` : "—"}
+                </span>
               </div>
             </div>
           </GlassCard3D>
 
-          <GlassCard3D glowColor="cyan">
+          <GlassCard3D tilt glowColor="cyan">
             <div className="p-5 space-y-3">
               <div className="flex items-center justify-between text-slate-400">
                 <span className="text-[11px] font-mono uppercase tracking-wider">Active Environments</span>
@@ -169,16 +186,16 @@ export default function Home() {
               </div>
               <div className="flex items-baseline gap-2">
                 <span className="text-3xl font-extrabold text-white font-mono">{totalEnvs}</span>
-                <span className="text-xs text-cyan-400 font-mono">Isolated Enclaves</span>
+                <span className="text-xs text-cyan-400 font-mono">in use</span>
               </div>
               <div className="text-[10px] font-mono text-slate-500 pt-2 border-t border-white/5 flex justify-between">
                 <span>prod • staging • dev</span>
-                <span>Granular RBAC</span>
+                <span>Keys scoped per environment</span>
               </div>
             </div>
           </GlassCard3D>
 
-          <GlassCard3D glowColor="purple">
+          <GlassCard3D tilt glowColor="purple">
             <div className="p-5 space-y-3">
               <div className="flex items-center justify-between text-slate-400">
                 <span className="text-[11px] font-mono uppercase tracking-wider">GitOps Revisions</span>
@@ -188,16 +205,16 @@ export default function Home() {
               </div>
               <div className="flex items-baseline gap-2">
                 <span className="text-3xl font-extrabold text-white font-mono">{totalVers}</span>
-                <span className="text-xs text-purple-400 font-mono">Immutable</span>
+                <span className="text-xs text-purple-400 font-mono">stored versions</span>
               </div>
               <div className="text-[10px] font-mono text-slate-500 pt-2 border-t border-white/5 flex justify-between">
-                <span>Compound Unique Index</span>
-                <span>Atomic Rollback</span>
+                <span>Compound unique index</span>
+                <span>Rollback = new version</span>
               </div>
             </div>
           </GlassCard3D>
 
-          <GlassCard3D glowColor="emerald">
+          <GlassCard3D tilt glowColor="emerald">
             <div className="p-5 space-y-3">
               <div className="flex items-center justify-between text-slate-400">
                 <span className="text-[11px] font-mono uppercase tracking-wider">Security & Audit</span>
@@ -207,10 +224,10 @@ export default function Home() {
               </div>
               <div className="flex items-baseline gap-2">
                 <span className="text-3xl font-extrabold text-white font-mono">{auditLogs}</span>
-                <span className="text-xs text-emerald-400 font-mono">Capped Events</span>
+                <span className="text-xs text-emerald-400 font-mono">audit entries</span>
               </div>
               <div className="text-[10px] font-mono text-slate-500 pt-2 border-t border-white/5 flex justify-between">
-                <span>Masked Audit Traces</span>
+                <span>Secrets masked</span>
                 <span>TTL Cache: {cachedConfigs}</span>
               </div>
             </div>
@@ -230,7 +247,7 @@ export default function Home() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <Link href="/configs" className="group">
-              <GlassCard3D glowColor="indigo" className="h-full">
+              <GlassCard3D tilt glowColor="indigo" className="h-full">
                 <div className="p-5 space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 group-hover:scale-110 transition-transform">
@@ -244,14 +261,14 @@ export default function Home() {
                     Configuration Studio
                   </h3>
                   <p className="text-xs text-slate-400 leading-relaxed font-light">
-                    Interactive JSON tree editor with collapsible keys, envelope-encrypted secure_settings lock badges, and raw editor validation.
+                    Collapsible JSON tree with lock badges on envelope-encrypted secure_settings, a raw JSON editor with syntax checking, and rollback.
                   </p>
                 </div>
               </GlassCard3D>
             </Link>
 
             <Link href="/diff" className="group">
-              <GlassCard3D glowColor="cyan" className="h-full">
+              <GlassCard3D tilt glowColor="cyan" className="h-full">
                 <div className="p-5 space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 group-hover:scale-110 transition-transform">
@@ -272,7 +289,7 @@ export default function Home() {
             </Link>
 
             <Link href="/binaries" className="group">
-              <GlassCard3D glowColor="emerald" className="h-full">
+              <GlassCard3D tilt glowColor="emerald" className="h-full">
                 <div className="p-5 space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 group-hover:scale-110 transition-transform">
@@ -286,14 +303,14 @@ export default function Home() {
                     GridFS Binary Blobs
                   </h3>
                   <p className="text-xs text-slate-400 leading-relaxed font-light">
-                    Store and version binary configuration assets: TLS certificates (.crt, .pem), Java keystores (.jks), and encrypted bundles.
+                    Store and version binary files such as TLS certificates (.crt, .pem) and Java keystores (.jks), each with a SHA-512 hash.
                   </p>
                 </div>
               </GlassCard3D>
             </Link>
 
             <Link href="/export" className="group">
-              <GlassCard3D glowColor="purple" className="h-full">
+              <GlassCard3D tilt glowColor="purple" className="h-full">
                 <div className="p-5 space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20 group-hover:scale-110 transition-transform">
@@ -307,14 +324,14 @@ export default function Home() {
                     Export Studio
                   </h3>
                   <p className="text-xs text-slate-400 leading-relaxed font-light">
-                    Instantly transform live JSON configurations into clean YAML or flat .env files for seamless container and deployment integration.
+                    Export any stored configuration as JSON, YAML or a flat .env file for containers and deployment pipelines.
                   </p>
                 </div>
               </GlassCard3D>
             </Link>
 
             <Link href="/audit" className="group">
-              <GlassCard3D glowColor="cyan" className="h-full">
+              <GlassCard3D tilt glowColor="cyan" className="h-full">
                 <div className="p-5 space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 group-hover:scale-110 transition-transform">
@@ -328,14 +345,14 @@ export default function Home() {
                     Capped Audit Log Stream
                   </h3>
                   <p className="text-xs text-slate-400 leading-relaxed font-light">
-                    Tamper-proof append-only circular log collection. Secrets are masked dynamically to guarantee zero credential leakage.
+                    Append-only capped collection: entries cannot be deleted one by one, and the oldest are discarded at 50 MB. Secret values are masked before an entry is written.
                   </p>
                 </div>
               </GlassCard3D>
             </Link>
 
             <Link href="/access" className="group">
-              <GlassCard3D glowColor="indigo" className="h-full">
+              <GlassCard3D tilt glowColor="indigo" className="h-full">
                 <div className="p-5 space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 group-hover:scale-110 transition-transform">
@@ -349,14 +366,14 @@ export default function Home() {
                     Scoped API Key Engine
                   </h3>
                   <p className="text-xs text-slate-400 leading-relaxed font-light">
-                    Role-Based Access Control matrix restricting token access to specific applications, environments, and privileges.
+                    API keys stored as hashes, each limited to chosen applications, environments and roles.
                   </p>
                 </div>
               </GlassCard3D>
             </Link>
 
             <Link href="/nosql" className="group">
-              <GlassCard3D glowColor="purple" className="h-full">
+              <GlassCard3D tilt glowColor="purple" className="h-full">
                 <div className="p-5 space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20 group-hover:scale-110 transition-transform">
@@ -370,7 +387,7 @@ export default function Home() {
                     NoSQL Deep Dive & Sharding
                   </h3>
                   <p className="text-xs text-slate-400 leading-relaxed font-light">
-                    Native Time-Series request telemetry, engine-level $jsonSchema validation rules, and interactive Shard Key routing simulator.
+                    Time-series request telemetry, the $jsonSchema validation rules, and a simulator for the sharding design.
                   </p>
                 </div>
               </GlassCard3D>

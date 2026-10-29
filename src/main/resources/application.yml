@@ -36,6 +36,7 @@ vault:
     ttl: 300
   version:
     expiry-days: 90
+    retain-count: 5
   audit:
     cap-size-mb: 50
     max-documents: 10000

@@ -41,7 +41,6 @@ public class VaultDocument {
 
     private LocalDateTime createdAt;
 
-    @Indexed(expireAfter = "90d")
     private LocalDateTime expiresAt;
 
     private String searchableText;

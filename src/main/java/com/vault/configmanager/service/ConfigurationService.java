@@ -67,8 +67,7 @@ public class ConfigurationService {
     private final MongoTemplate mongoTemplate;
     private final TelemetryService telemetryService;
 
-    @Value("${vault.version.expiry-days:90}")
-    private int expiryDays;
+    private final VersionRetentionService versionRetentionService;
 
     public ConfigurationService(ConfigurationRepository configurationRepository,
                                 JsonTraverser jsonTraverser,
@@ -77,7 +76,7 @@ public class ConfigurationService {
                                 AuditService auditService,
                                 ObjectMapper objectMapper,
                                 ConfigDiffUtil configDiffUtil) {
-        this(configurationRepository, jsonTraverser, hashingService, cacheService, auditService, objectMapper, configDiffUtil, null, null, null, null);
+        this(configurationRepository, jsonTraverser, hashingService, cacheService, auditService, objectMapper, configDiffUtil, null, null, null, null, null);
     }
 
     public ConfigurationService(ConfigurationRepository configurationRepository,
@@ -88,7 +87,7 @@ public class ConfigurationService {
                                 ObjectMapper objectMapper,
                                 ConfigDiffUtil configDiffUtil,
                                 MongoTransactionManager transactionManager) {
-        this(configurationRepository, jsonTraverser, hashingService, cacheService, auditService, objectMapper, configDiffUtil, transactionManager, null, null, null);
+        this(configurationRepository, jsonTraverser, hashingService, cacheService, auditService, objectMapper, configDiffUtil, transactionManager, null, null, null, null);
     }
 
     @Autowired
@@ -102,7 +101,8 @@ public class ConfigurationService {
                                 @Autowired(required = false) MongoTransactionManager transactionManager,
                                 @Autowired(required = false) ChangeStreamService changeStreamService,
                                 @Autowired(required = false) MongoTemplate mongoTemplate,
-                                @Autowired(required = false) TelemetryService telemetryService) {
+                                @Autowired(required = false) TelemetryService telemetryService,
+                                @Autowired(required = false) VersionRetentionService versionRetentionService) {
         this.configurationRepository = configurationRepository;
         this.jsonTraverser = jsonTraverser;
         this.hashingService = hashingService;
@@ -114,6 +114,7 @@ public class ConfigurationService {
         this.changeStreamService = changeStreamService;
         this.mongoTemplate = mongoTemplate;
         this.telemetryService = telemetryService;
+        this.versionRetentionService = versionRetentionService;
     }
 
     /**
@@ -139,9 +140,6 @@ public class ConfigurationService {
         // 4. Determine next version number
         int nextVersion = latestOpt.map(v -> v.getVersion() + 1).orElse(1);
 
-        // Expire older version after configured days if enabled
-        latestOpt.ifPresent(this::retirePreviousVersion);
-
         // 5. Persist new immutable document
         LocalDateTime now = LocalDateTime.now();
         VaultDocument document = new VaultDocument(
@@ -162,6 +160,8 @@ public class ConfigurationService {
         } catch (DuplicateKeyException e) {
             throw new DuplicateVersionException(app, env, nextVersion);
         }
+
+        applyRetention(app, env);
 
         // 6. Invalidate read cache
         cacheService.evict(app, env);
@@ -369,8 +369,6 @@ public class ConfigurationService {
                 .findTopByApplicationNameAndEnvironmentOrderByVersionDesc(app, env);
         int nextVersion = latestOpt.map(v -> v.getVersion() + 1).orElse(1);
 
-        latestOpt.ifPresent(this::retirePreviousVersion);
-
         // 3. Re-insert the target payload under the new version number
         LocalDateTime now = LocalDateTime.now();
         Map<String, String> tags = new HashMap<>(targetDoc.getTags());
@@ -394,6 +392,8 @@ public class ConfigurationService {
         } catch (DuplicateKeyException e) {
             throw new DuplicateVersionException(app, env, nextVersion);
         }
+
+        applyRetention(app, env);
 
         // 4. Invalidate cache and audit
         cacheService.evict(app, env);
@@ -429,10 +429,13 @@ public class ConfigurationService {
         }
     }
 
-    private void retirePreviousVersion(VaultDocument doc) {
-        if (expiryDays > 0) {
-            doc.setExpiresAt(LocalDateTime.now().plusDays(expiryDays));
-            configurationRepository.save(doc);
+    private void applyRetention(String app, String env) {
+        if (versionRetentionService != null) {
+            try {
+                versionRetentionService.applyRetention(app, env);
+            } catch (Exception e) {
+                log.warn("Version retention failed for app={}, env={}: {}", app, env, e.getMessage());
+            }
         }
     }
 

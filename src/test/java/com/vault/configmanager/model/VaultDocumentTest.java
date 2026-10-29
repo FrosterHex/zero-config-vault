@@ -42,10 +42,9 @@ class VaultDocumentTest {
         Field envField = VaultDocument.class.getDeclaredField("environment");
         assertNotNull(envField.getAnnotation(Indexed.class), "@Indexed must be present on environment");
 
+        // expiresAt is deliberately not annotated: MongoConfig creates its exact-date TTL index (expireAfterSeconds 0)
         Field expiresAtField = VaultDocument.class.getDeclaredField("expiresAt");
-        Indexed ttlIndex = expiresAtField.getAnnotation(Indexed.class);
-        assertNotNull(ttlIndex, "@Indexed must be present on expiresAt");
-        assertEquals("90d", ttlIndex.expireAfter(), "TTL index must be configured for 90d auto-expiry");
+        assertNull(expiresAtField.getAnnotation(Indexed.class), "expiresAt TTL index is managed by MongoConfig");
     }
 
     @Test

@@ -51,7 +51,9 @@ html.lenis, html.lenis body { height: auto; }
 
 /* SECTION 1 · HERO */
 .landing .hero { position: relative; z-index: 1; min-height: 100vh; display: flex; flex-direction: column; background: radial-gradient(125% 62% at 50% -10%, rgba(4,6,15,.82) 0%, rgba(4,6,15,.28) 44%, transparent 68%); }
-.landing .nav { width: 100%; max-width: var(--maxw); margin: 0 auto; padding: 22px 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+/* position + z-index: the hero-inner block below is moved up by translateY(-10vh) and would otherwise
+   paint over the nav, swallowing clicks on its links */
+.landing .nav { position: relative; z-index: 2; width: 100%; max-width: var(--maxw); margin: 0 auto; padding: 22px 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .landing .brand { display: inline-flex; align-items: center; gap: 9px; font-weight: 800; font-size: 19px; letter-spacing: .16em; white-space: nowrap; }
 .landing .brand-mark { color: var(--accent); font-size: 14px; transform: translateY(-1px); }
 .landing .nav-links { display: flex; gap: 30px; font-size: 14.5px; color: var(--muted); }
@@ -68,8 +70,9 @@ html.lenis, html.lenis body { height: auto; }
 .landing .logos { position: relative; z-index: 1; text-align: center; padding: 0 24px clamp(36px,6vw,64px); }
 .landing .logos-label { font-size: 12px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted-2); }
 .landing .logos-row { margin-top: 18px; display: flex; flex-wrap: wrap; justify-content: center; gap: clamp(24px,5vw,56px); }
-.landing .logo { font-size: 17px; font-weight: 700; color: var(--muted-2); opacity: .8; transition: color .2s ease, opacity .2s ease; }
-.landing .logo:hover { color: var(--ink); opacity: 1; }
+/* --muted at full opacity with a shadow (the design's --muted-2 at .8 was too faint over the halo) */
+.landing .logo { font-size: 17px; font-weight: 700; color: var(--muted); text-shadow: 0 1px 12px rgba(4,6,15,.9); transition: color .2s ease; }
+.landing .logo:hover { color: var(--ink); }
 
 /* SECTION 2 · FEATURES */
 .landing .feature-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 18px; }
@@ -113,14 +116,15 @@ html.lenis, html.lenis body { height: auto; }
 .landing .cta-card .hero-actions { margin-top: 0; }
 /* The planet settles behind the footer, so the footer sits on a glass panel to keep its links readable. */
 .landing .footer { display: flex; justify-content: space-between; gap: 48px; flex-wrap: wrap; margin-top: clamp(64px,9vw,110px); padding: 40px clamp(24px,4vw,40px); border: 1px solid var(--line); border-radius: var(--radius-lg); background: rgba(4,6,15,.72); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
-.landing .copyright { text-shadow: 0 1px 12px rgba(0,0,0,.9); }
 .landing .footer-brand p { margin-top: 12px; font-size: 14px; color: var(--muted); max-width: 280px; line-height: 1.6; }
 .landing .footer-cols { display: flex; gap: clamp(32px,6vw,72px); flex-wrap: wrap; }
 .landing .footer-col h4 { font-size: 12px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--muted-2); margin-bottom: 14px; }
 .landing .footer-col ul { list-style: none; display: grid; gap: 10px; }
 .landing .footer-col a { font-size: 14px; color: var(--muted); transition: color .2s ease; }
 .landing .footer-col a:hover { color: var(--ink); }
-.landing .copyright { margin-top: 56px; text-align: center; font-size: 13px; color: var(--muted-2); }
+.landing .copyright { margin-top: 56px; text-align: center; font-size: 13px; color: var(--muted-2); text-shadow: 0 1px 12px rgba(0,0,0,.9); }
+.landing .dash-live.is-down { color: #fda4af; }
+.landing .dash-live.is-down::before { background: #fb7185; box-shadow: 0 0 10px #fb7185; }
 
 /* Responsive */
 @media (max-width: 980px) {

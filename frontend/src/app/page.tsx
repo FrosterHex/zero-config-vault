@@ -8,7 +8,7 @@ import { useVault } from "@/context/VaultContext";
 import { LoginDialog } from "@/components/auth/LoginDialog";
 import { PlanetCanvas } from "@/components/landing/PlanetCanvas";
 import { ArrowIcon, FeatureIcon } from "@/components/landing/Icons";
-import { useLenis, usePrefersReducedMotion, useReveal } from "@/components/landing/useLandingMotion";
+import { useLenis, useReveal } from "@/components/landing/useLandingMotion";
 import { BUILT_ON, FEATURES, FOOTER_COLUMNS, NAV_LINKS, toBars, toEnvRows } from "@/components/landing/landing-content";
 
 const rd = (ms: number) => ({ "--rd": `${ms}ms` }) as React.CSSProperties;
@@ -24,14 +24,13 @@ function Brand() {
 
 export default function LandingPage() {
   const router = useRouter();
-  const { stats, role } = useVault();
-  const reducedMotion = usePrefersReducedMotion();
+  const { stats, role, vaultStatus } = useVault();
   const rootRef = useRef<HTMLDivElement>(null);
   const [loginOpen, setLoginOpen] = useState(false);
 
-  useLenis(reducedMotion);
+  useLenis();
   // Re-scan when the live dashboard mock swaps its placeholder for real bars.
-  useReveal(rootRef, reducedMotion, [stats !== null]);
+  useReveal(rootRef, [stats !== null]);
 
   const bars = toBars(stats?.versionCounts);
   const envRows = toEnvRows(stats?.versionCounts);
@@ -54,7 +53,7 @@ export default function LandingPage() {
 
   return (
     <div className="landing" ref={rootRef}>
-      <PlanetCanvas reducedMotion={reducedMotion} />
+      <PlanetCanvas />
 
       <div className="page" id="top">
         {/* SECTION 1 · HERO */}
@@ -133,10 +132,12 @@ export default function LandingPage() {
               </div>
             </div>
 
-            <div className="dashboard" data-reveal style={rd(160)} aria-label="Live versions per application">
+            <div className="dashboard" data-reveal style={rd(160)} role="figure" aria-label="Live versions per application">
               <div className="dash-top">
                 <span>Versions per app</span>
-                <span className="dash-live">{stats ? "Live" : "Connecting"}</span>
+                <span className={`dash-live${!stats && vaultStatus === "unreachable" ? " is-down" : ""}`}>
+                  {stats ? "Live" : vaultStatus === "unreachable" ? "Unreachable" : "Connecting"}
+                </span>
               </div>
               {bars.length > 0 ? (
                 <div className="dash-bars">
@@ -152,7 +153,9 @@ export default function LandingPage() {
                   ))}
                 </div>
               ) : (
-                <div className="dash-empty">Waiting for the vault…</div>
+                <div className="dash-empty">
+                  {vaultStatus === "unreachable" ? "The vault is not answering right now." : "Waiting for the vault…"}
+                </div>
               )}
               <div className="dash-rows">
                 {envRows.map((row) => (

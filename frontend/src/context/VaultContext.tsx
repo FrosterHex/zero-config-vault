@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
-import { vaultApi, StatsResponse } from "@/lib/api";
+import { vaultApi, authApi, onWakingChange, StatsResponse, Role } from "@/lib/api";
 
 export type Environment = "production" | "staging" | "development";
 
@@ -18,9 +18,13 @@ interface VaultContextType {
   envs: Environment[];
   stats: StatsResponse | null;
   loadingStats: boolean;
+  role: Role;
+  refreshRole: () => Promise<void>;
+  isWaking: boolean;
+  canWrite: (app: string) => boolean;
 }
 
-const DEFAULT_APPS = ["payment-gateway", "order-service", "auth-service", "inventory-service"];
+const DEFAULT_APPS = ["playground", "payment-gateway", "order-service", "auth-service", "inventory-service"];
 const DEFAULT_ENVS: Environment[] = ["production", "staging", "development"];
 
 const VaultContext = createContext<VaultContextType | undefined>(undefined);
@@ -33,6 +37,24 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const [apps, setApps] = useState<string[]>(DEFAULT_APPS);
   const [stats, setStats] = useState<StatsResponse | null>(null);
   const [loadingStats, setLoadingStats] = useState<boolean>(false);
+  const [role, setRole] = useState<Role>("guest");
+  const [isWaking, setIsWaking] = useState<boolean>(false);
+
+  const refreshRole = useCallback(async () => {
+    try {
+      setRole(await authApi.session());
+    } catch {
+      setRole("guest");
+    }
+  }, []);
+
+  const canWrite = useCallback((app: string) => role === "admin" || app === "playground", [role]);
+
+  useEffect(() => onWakingChange(setIsWaking), []);
+
+  useEffect(() => {
+    void refreshRole();
+  }, [refreshRole]);
 
   // Load environment from localStorage if previously selected
   useEffect(() => {
@@ -79,7 +101,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
           const discovered = Object.keys(data.versionCounts)
             .map((k) => k.split(":")[0])
             .filter((v, i, a) => a.indexOf(v) === i);
-          const combined = Array.from(new Set([...DEFAULT_APPS, ...discovered]));
+          const combined = Array.from(new Set([...DEFAULT_APPS, ...discovered, "playground"]));
           setApps(combined);
         }
       })
@@ -110,6 +132,10 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         envs: DEFAULT_ENVS,
         stats,
         loadingStats,
+        role,
+        refreshRole,
+        isWaking,
+        canWrite,
       }}
     >
       {children}

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Search, Key, RefreshCw } from "lucide-react";
+import { Search, RefreshCw } from "lucide-react";
 import { useVault, Environment } from "@/context/VaultContext";
 
 export function Header() {
@@ -57,13 +57,6 @@ export function Header() {
               {env.label}
             </button>
           ))}
-        </div>
-
-        {/* API Key Status */}
-        <div className="hidden sm:flex items-center gap-1.5 rounded-lg border border-white/10 bg-black/30 px-3 py-1.5 text-xs text-slate-300 font-mono">
-          <Key className="h-3.5 w-3.5 text-indigo-400" />
-          <span className="text-slate-500 text-[11px]">KEY:</span>
-          <span className="text-slate-300">sk-dev-***-001</span>
         </div>
 
         {/* Sync Indicator / Refresh Button */}

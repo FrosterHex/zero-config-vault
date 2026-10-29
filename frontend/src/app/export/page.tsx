@@ -42,28 +42,13 @@ export default function ExportPage() {
   const loadExport = useCallback(async () => {
     setLoading(true);
     try {
-      const exportUrl = vaultApi.exportConfig(selectedApp, selectedEnv, format);
-      const res = await fetch(exportUrl, {
-        headers: { "X-API-Key": "sk-dev-key-001" },
-      });
-      if (res.ok) {
-        const text = await res.text();
-        setExportedText(text);
-      } else {
-        setExportedText(`# Zero-Config Vault Configuration Export
+      setExportedText(await vaultApi.exportConfig(selectedApp, selectedEnv, format));
+    } catch {
+      setExportedText(`# Zero-Config Vault Configuration Export
 # Application: ${selectedApp}
 # Environment: ${selectedEnv}
 # Format: ${format.toUpperCase()}
 # Status: No active configuration found for this scope. Ingest a configuration in Configuration Studio.`);
-      }
-    } catch {
-      setExportedText(`# Export for ${selectedApp} [${selectedEnv}]
-database:
-  host: db-primary.internal
-  port: 27017
-service:
-  name: ${selectedApp}
-  environment: ${selectedEnv}`);
     } finally {
       setLoading(false);
     }

@@ -1,0 +1,11 @@
+# Installed and built inside the image; host copies (e.g. Windows binaries) must not overwrite them
+node_modules
+.next
+out
+.vercel
+
+# Never bake local secrets into an image; runtime env comes from docker-compose
+.env*
+
+npm-debug.log*
+*.tsbuildinfo

@@ -321,8 +321,8 @@ cd starter
 mvn test
 ```
 
-#### Tests
-`mvn test` in the repository root runs the unit tests and the integration tests (`*IT.java`). The integration tests start a real MongoDB 7.0 replica set through Testcontainers, so they need Docker and are skipped when Docker is not available. `mvn -f starter/pom.xml test` runs the starter's own tests.
+### Tests
+`mvn test` in the repository root runs the unit tests and the integration tests (`*IT.java`). The integration tests start a real MongoDB 7.0 replica set through Testcontainers, so they need Docker and are skipped when Docker is not available. The first run pulls the `mongo:7.0` image. `mvn -f starter/pom.xml test` runs the starter's own tests.
 
 ### 3. Build and Run Frontend
 Run the backend with the `dev` Spring profile (`--spring.profiles.active=dev`). That profile seeds the well-known development keys; outside it they are refused. The dashboard talks to the backend only through its server-side proxy, so the browser never sees an API key and no `NEXT_PUBLIC_VAULT_*` variable is used. Copy `frontend/.env.example` to `frontend/.env.local`; its defaults match the dev keys:

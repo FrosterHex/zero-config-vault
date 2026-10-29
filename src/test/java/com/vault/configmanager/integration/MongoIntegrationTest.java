@@ -2,6 +2,7 @@ package com.vault.configmanager.integration;
 
 import java.util.UUID;
 
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
@@ -10,20 +11,35 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.MongoDBContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.DockerClientFactory;
 
 /**
  * Base class for integration tests that run against a real single-node MongoDB replica set,
- * so transactions and change streams behave as in production. Skipped when Docker is unavailable.
+ * so transactions and change streams behave as in production. Skipped when Docker is unavailable. The container is shared by all subclasses.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("dev")
-@Testcontainers(disabledWithoutDocker = true)
+@EnabledIf(value = "com.vault.configmanager.integration.MongoIntegrationTest#dockerAvailable",
+        disabledReason = "Docker is not available")
 public abstract class MongoIntegrationTest {
 
-    @Container
+    // One container for the whole JVM: Spring caches the application context across test classes,
+    // so the container must outlive any single class. Testcontainers' Ryuk removes it at JVM exit.
     static final MongoDBContainer MONGO = new MongoDBContainer("mongo:7.0");
+
+    static {
+        if (dockerAvailable()) {
+            MONGO.start();
+        }
+    }
+
+    static boolean dockerAvailable() {
+        try {
+            return DockerClientFactory.instance().isDockerAvailable();
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
 
     @DynamicPropertySource
     static void mongoProperties(DynamicPropertyRegistry registry) {

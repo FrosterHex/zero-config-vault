@@ -122,6 +122,17 @@ public class ConfigurationService {
      */
     public ConfigResponse createConfiguration(ConfigRequest request, String requestingIp, String apiKey) {
         long startTime = System.currentTimeMillis();
+        VaultDocument saved = insertVersion(request);
+        refreshAfterWrite(saved.getApplicationName(), saved.getEnvironment());
+        announceWrite(saved, requestingIp, apiKey, startTime);
+        return toConfigResponse(saved, jsonTraverser.decryptDocument(saved.getPayload()));
+    }
+
+    /**
+     * Insert step: resolves placeholders, encrypts, hashes, assigns the next version and saves.
+     * Touches only the configurations collection, so it is safe inside a transaction.
+     */
+    private VaultDocument insertVersion(ConfigRequest request) {
         String app = request.getApplicationName();
         String env = request.getEnvironment();
 
@@ -154,28 +165,26 @@ public class ConfigurationService {
         );
         document.setSearchableText(buildSearchableContent(app, env, rawPayload, request.getTags()));
 
-        VaultDocument saved;
         try {
-            saved = configurationRepository.save(document);
+            return configurationRepository.save(document);
         } catch (DuplicateKeyException e) {
             throw new DuplicateVersionException(app, env, nextVersion);
         }
+    }
 
+    /** Post-write housekeeping per app/env: version retention, then read-cache invalidation. */
+    private void refreshAfterWrite(String app, String env) {
         applyRetention(app, env);
-
-        // 6. Invalidate read cache
         cacheService.evict(app, env);
+    }
 
-        // 7. Broadcast reactive change stream event
-        notifyChangeStream("CREATE", app, env, nextVersion, documentHash, saved.getTags());
-
-        // 8. Audit log
+    /** Post-write announcements per saved document: live event, audit entry and telemetry. */
+    private void announceWrite(VaultDocument saved, String requestingIp, String apiKey, long startTime) {
+        String app = saved.getApplicationName();
+        String env = saved.getEnvironment();
+        notifyChangeStream("CREATE", app, env, saved.getVersion(), saved.getDocumentHash(), saved.getTags());
         auditService.log("CREATE", app, env, requestingIp, apiKey, true, null);
         recordTelemetry(app, env, "WRITE", startTime, false, 201, requestingIp);
-
-        // 9. Return decrypted response
-        Document decryptedPayload = jsonTraverser.decryptDocument(saved.getPayload());
-        return toConfigResponse(saved, decryptedPayload);
     }
 
     /**
@@ -521,53 +530,66 @@ public class ConfigurationService {
      * When atomic=false, performs best-effort import.
      */
     public BulkConfigResponse bulkImport(BulkConfigRequest bulkRequest, boolean atomic, String requestingIp, String apiKey) {
-        if (atomic && transactionManager != null) {
-            TransactionTemplate transactionTemplate = new TransactionTemplate(transactionManager);
-            try {
-                return transactionTemplate.execute(status -> {
-                    int succeeded = 0;
-                    List<ConfigResponse> results = new ArrayList<>();
-                    List<Map<String, Object>> errors = new ArrayList<>();
-                    List<ConfigRequest> configs = bulkRequest.getConfigs() != null ? bulkRequest.getConfigs() : List.of();
-
-                    for (int i = 0; i < configs.size(); i++) {
-                        ConfigRequest req = configs.get(i);
-                        try {
-                            ConfigResponse response = createConfiguration(req, requestingIp, apiKey);
-                            results.add(response);
-                            succeeded++;
-                        } catch (Exception e) {
-                            Map<String, Object> err = new LinkedHashMap<>();
-                            err.put("index", i);
-                            err.put("applicationName", req.getApplicationName());
-                            err.put("environment", req.getEnvironment());
-                            err.put("error", e.getMessage());
-                            errors.add(err);
-                        }
-                    }
-
-                    if (!errors.isEmpty()) {
-                        status.setRollbackOnly();
-                        auditService.log("BULK_IMPORT_ROLLBACK", "bulk", "multi", requestingIp, apiKey, false,
-                                "Atomic bulk transaction rolled back due to " + errors.size() + " failure(s)");
-                        throw new BulkTransactionException(
-                                "Atomic bulk transaction failed and was rolled back due to " + errors.size() + " validation/execution error(s)",
-                                errors);
-                    }
-
-                    auditService.log("BULK_IMPORT_ATOMIC", "bulk", "multi", requestingIp, apiKey, true, null);
-                    return new BulkConfigResponse(configs.size(), succeeded, 0, results, List.of());
-                });
-            } catch (BulkTransactionException bte) {
-                throw bte;
-            } catch (Exception ex) {
-                log.warn("MongoTransactionManager transaction failed or unsupported ({}: {}). Re-throwing BulkTransactionException.",
-                        ex.getClass().getSimpleName(), ex.getMessage());
-                throw new BulkTransactionException("Atomic bulk transaction error: " + ex.getMessage());
-            }
+        if (!atomic) {
+            return executeBestEffortBulkImport(bulkRequest, requestingIp, apiKey);
+        }
+        if (transactionManager == null) {
+            throw new BulkTransactionException("Atomic bulk import requires a replica set (transactions are not available); nothing was written");
         }
 
-        return executeBestEffortBulkImport(bulkRequest, requestingIp, apiKey);
+        List<ConfigRequest> configs = bulkRequest.getConfigs() != null ? bulkRequest.getConfigs() : List.of();
+        List<VaultDocument> saved = new ArrayList<>();
+        List<ConfigResponse> results = new ArrayList<>();
+        long startTime = System.currentTimeMillis();
+
+        try {
+            // Only inserts run inside the transaction: capped/time-series collections reject transactional writes.
+            new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+                List<Map<String, Object>> errors = new ArrayList<>();
+                for (int i = 0; i < configs.size(); i++) {
+                    ConfigRequest req = configs.get(i);
+                    try {
+                        VaultDocument doc = insertVersion(req);
+                        saved.add(doc);
+                        results.add(toConfigResponse(doc, jsonTraverser.decryptDocument(doc.getPayload())));
+                    } catch (Exception e) {
+                        Map<String, Object> err = new LinkedHashMap<>();
+                        err.put("index", i);
+                        err.put("applicationName", req.getApplicationName());
+                        err.put("environment", req.getEnvironment());
+                        err.put("error", e.getMessage());
+                        errors.add(err);
+                    }
+                }
+                if (!errors.isEmpty()) {
+                    status.setRollbackOnly();
+                    throw new BulkTransactionException(
+                            "Atomic bulk transaction failed and was rolled back due to " + errors.size() + " validation/execution error(s)",
+                            errors);
+                }
+            });
+        } catch (BulkTransactionException bte) {
+            auditService.log("BULK_IMPORT_ROLLBACK", "bulk", "multi", requestingIp, apiKey, false,
+                    "Atomic bulk transaction rolled back due to " + bte.getErrors().size() + " failure(s)");
+            throw bte;
+        } catch (Exception ex) {
+            log.warn("Atomic bulk transaction failed or unsupported ({}: {}).",
+                    ex.getClass().getSimpleName(), ex.getMessage());
+            throw new BulkTransactionException("Atomic bulk transaction error (atomic import requires a replica set): " + ex.getMessage());
+        }
+
+        // Committed: run side effects, retention and eviction once per distinct app/env.
+        Set<List<String>> refreshed = new LinkedHashSet<>();
+        for (VaultDocument doc : saved) {
+            if (refreshed.add(List.of(doc.getApplicationName(), doc.getEnvironment()))) {
+                refreshAfterWrite(doc.getApplicationName(), doc.getEnvironment());
+            }
+        }
+        for (VaultDocument doc : saved) {
+            announceWrite(doc, requestingIp, apiKey, startTime);
+        }
+        auditService.log("BULK_IMPORT_ATOMIC", "bulk", "multi", requestingIp, apiKey, true, null);
+        return new BulkConfigResponse(configs.size(), saved.size(), 0, results, List.of());
     }
 
     public BulkConfigResponse bulkImport(BulkConfigRequest bulkRequest, String requestingIp, String apiKey) {

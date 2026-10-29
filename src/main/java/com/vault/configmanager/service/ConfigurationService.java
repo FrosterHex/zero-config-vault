@@ -221,7 +221,9 @@ public class ConfigurationService {
             }
             return out;
         }
-        if (inSecure && SecretMaskingUtil.MASKED_PLACEHOLDER.equals(value)) {
+        String leafKey = path.substring(path.lastIndexOf('.') + 1);
+        if ((inSecure || SecretMaskingUtil.isSensitiveKey(leafKey))
+                && SecretMaskingUtil.MASKED_PLACEHOLDER.equals(value)) {
             Object stored = lookupPath(current.get(), path);
             if (stored == null) {
                 throw new IllegalArgumentException(
@@ -675,12 +677,15 @@ public class ConfigurationService {
 
     private void flattenDocumentToSearch(Document doc, String prefix, StringBuilder sb) {
         for (Map.Entry<String, Object> entry : doc.entrySet()) {
-            if (JsonTraverser.SECURE_SETTINGS_KEY.equals(entry.getKey())) {
+            if (SecretMaskingUtil.isSecureSettingsKey(entry.getKey())) {
                 continue;
             }
             String key = prefix.isEmpty() ? entry.getKey() : prefix + "." + entry.getKey();
             Object val = entry.getValue();
             sb.append(key).append(" ");
+            if (SecretMaskingUtil.isSensitivePath(key)) {
+                continue;
+            }
             if (val instanceof Document childDoc) {
                 flattenDocumentToSearch(childDoc, key, sb);
             } else if (val != null) {
@@ -697,15 +702,18 @@ public class ConfigurationService {
 
     private void flattenMatchingNodes(Document doc, String prefix, String term, Map<String, Object> snippets) {
         for (Map.Entry<String, Object> entry : doc.entrySet()) {
-            if (JsonTraverser.SECURE_SETTINGS_KEY.equals(entry.getKey())) {
+            if (SecretMaskingUtil.isSecureSettingsKey(entry.getKey())) {
                 continue;
             }
             String key = prefix.isEmpty() ? entry.getKey() : prefix + "." + entry.getKey();
             Object val = entry.getValue();
-            if (key.toLowerCase().contains(term) || (val != null && val.toString().toLowerCase().contains(term))) {
-                snippets.put(key, val instanceof Document ? "{...}" : val);
+            boolean sensitive = SecretMaskingUtil.isSensitivePath(key);
+            if (key.toLowerCase().contains(term)
+                    || (!sensitive && val != null && val.toString().toLowerCase().contains(term))) {
+                snippets.put(key, sensitive ? SecretMaskingUtil.MASKED_PLACEHOLDER
+                        : val instanceof Document ? "{...}" : val);
             }
-            if (val instanceof Document childDoc && snippets.size() < 8) {
+            if (!sensitive && val instanceof Document childDoc && snippets.size() < 8) {
                 flattenMatchingNodes(childDoc, key, term, snippets);
             }
         }

@@ -22,6 +22,8 @@ public final class TestApiKeys {
     private final ApiKeyService service = new ApiKeyService(repository);
 
     public TestApiKeys() {
+        // Tests use the well-known dev keys, which are only accepted in dev mode.
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "devMode", true);
         when(repository.findByHashedSecret(anyString())).thenReturn(Optional.empty());
     }
 

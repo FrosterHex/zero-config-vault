@@ -169,6 +169,9 @@ public class ApiKeyService {
         if (rawKey == null || rawKey.isBlank()) {
             return Optional.empty();
         }
+        if (!devMode && WELL_KNOWN_DEV_KEYS.contains(rawKey.trim())) {
+            return Optional.empty();
+        }
         String hash = sha256Hex(rawKey.trim());
         Optional<ApiKey> keyOpt = apiKeyRepository.findByHashedSecret(hash);
         if (keyOpt.isPresent()) {

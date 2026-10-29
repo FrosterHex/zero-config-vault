@@ -164,8 +164,6 @@ zero-config-vault/
 ├── pom.xml                                   # Root Maven reactor build
 ├── SPEC.md                                   # Active system specification
 ├── DECISIONS.md                              # Architectural decisions log
-├── PRD.md                                    # Implementation task breakdown
-├── progress.txt                              # Completed milestones tracking
 │
 ├── backend/                                  # Spring Boot 3.x Backend Application
 │   ├── pom.xml

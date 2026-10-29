@@ -10,6 +10,8 @@ import { useVault } from "@/context/VaultContext";
 interface LoginDialogProps {
   open: boolean;
   onClose: () => void;
+  /** Called after a successful sign-in, just before onClose. */
+  onSignedIn?: () => void;
 }
 
 /**
@@ -17,7 +19,7 @@ interface LoginDialogProps {
  * Escape or the close button dismisses it, and focus returns to whatever opened it.
  * Rendered into document.body so a blurred ancestor (the header) cannot clip its fixed overlay.
  */
-export function LoginDialog({ open, onClose }: LoginDialogProps) {
+export function LoginDialog({ open, onClose, onSignedIn }: LoginDialogProps) {
   const { refreshRole, triggerRefresh } = useVault();
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -42,7 +44,8 @@ export function LoginDialog({ open, onClose }: LoginDialogProps) {
     const frame = requestAnimationFrame(() => inputRef.current?.focus());
     return () => {
       cancelAnimationFrame(frame);
-      opener?.focus?.();
+      // After sign-in the opener is replaced; the parent moves focus via onSignedIn instead.
+      if (opener?.isConnected) opener.focus();
     };
   }, [open]);
 
@@ -77,11 +80,15 @@ export function LoginDialog({ open, onClose }: LoginDialogProps) {
       await authApi.login(password);
       await refreshRole();
       triggerRefresh();
+      onSignedIn?.();
       onClose();
     } catch (err) {
       setError(err instanceof Error && err.message ? err.message : "Sign-in failed. Please try again.");
       setPending(false);
-      requestAnimationFrame(() => inputRef.current?.select());
+      requestAnimationFrame(() => {
+        inputRef.current?.focus();
+        inputRef.current?.select();
+      });
     }
   };
 
@@ -125,7 +132,7 @@ export function LoginDialog({ open, onClose }: LoginDialogProps) {
               <X className="h-4 w-4" />
             </button>
 
-            <form onSubmit={handleSubmit} className="relative space-y-5 p-6">
+            <form onSubmit={handleSubmit} aria-busy={pending} className="relative space-y-5 p-6">
               <div className="space-y-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-indigo-500/30 bg-indigo-500/10 text-indigo-300">
                   <Lock className="h-5 w-5" aria-hidden="true" />
@@ -157,10 +164,10 @@ export function LoginDialog({ open, onClose }: LoginDialogProps) {
                       setPassword(e.target.value);
                       if (error) setError(null);
                     }}
-                    disabled={pending}
+                    readOnly={pending}
                     aria-invalid={error ? true : undefined}
                     aria-describedby={error ? errorId : undefined}
-                    className={`h-10 w-full rounded-lg border bg-black/40 pl-9 pr-3 font-mono text-sm text-white placeholder-slate-600 transition-colors focus:outline-none focus:ring-2 disabled:opacity-60 ${
+                    className={`h-10 w-full rounded-lg border bg-black/40 pl-9 pr-3 font-mono text-sm text-white placeholder-slate-600 transition-colors focus:outline-none focus:ring-2 read-only:opacity-60 ${
                       error
                         ? "border-rose-500/60 focus:border-rose-500 focus:ring-rose-500/40"
                         : "border-white/10 focus:border-indigo-500 focus:ring-indigo-500/40"
@@ -185,9 +192,9 @@ export function LoginDialog({ open, onClose }: LoginDialogProps) {
                 </button>
                 <button
                   type="submit"
-                  disabled={pending || !password}
-                  aria-busy={pending}
-                  className="inline-flex h-9 min-w-[96px] items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 text-xs font-semibold text-white shadow-md shadow-indigo-600/25 transition-colors hover:bg-indigo-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0B0F19] disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={!password}
+                  aria-disabled={pending || undefined}
+                  className="aria-disabled:cursor-wait aria-disabled:opacity-70 inline-flex h-9 min-w-[96px] items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 text-xs font-semibold text-white shadow-md shadow-indigo-600/25 transition-colors hover:bg-indigo-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0B0F19] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {pending ? (
                     <>

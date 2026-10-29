@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Search, RefreshCw, LogIn, LogOut, Loader2 } from "lucide-react";
 import { useVault, Environment } from "@/context/VaultContext";
 import { authApi } from "@/lib/api";
@@ -12,6 +12,16 @@ export function Header() {
   const [spinning, setSpinning] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const logoutRef = useRef<HTMLButtonElement>(null);
+  const focusLogoutAfterLogin = useRef(false);
+
+  // The login button unmounts after sign-in, so hand focus to its replacement once the dialog closes.
+  useEffect(() => {
+    if (!loginOpen && role === "admin" && focusLogoutAfterLogin.current) {
+      focusLogoutAfterLogin.current = false;
+      logoutRef.current?.focus();
+    }
+  }, [loginOpen, role]);
 
   const handleLogout = async () => {
     setLoggingOut(true);
@@ -103,6 +113,7 @@ export function Header() {
           <RoleBadge role={role} />
           {role === "admin" ? (
             <button
+              ref={logoutRef}
               type="button"
               onClick={handleLogout}
               disabled={loggingOut}
@@ -125,7 +136,13 @@ export function Header() {
         </div>
       </div>
 
-      <LoginDialog open={loginOpen} onClose={() => setLoginOpen(false)} />
+      <LoginDialog
+        open={loginOpen}
+        onClose={() => setLoginOpen(false)}
+        onSignedIn={() => {
+          focusLogoutAfterLogin.current = true;
+        }}
+      />
     </header>
   );
 }

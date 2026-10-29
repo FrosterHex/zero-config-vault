@@ -1,6 +1,6 @@
 package com.vault.configmanager.service;
 
-import com.mongodb.MongoCommandException;
+import com.mongodb.MongoException;
 import com.mongodb.client.ChangeStreamIterable;
 import com.mongodb.client.MongoChangeStreamCursor;
 import com.mongodb.client.model.Aggregates;
@@ -25,7 +25,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 /**
@@ -54,6 +56,9 @@ public class ChangeStreamService {
     private static final long STARTUP_RETRY_DELAY_MS = 1000L;
     private static final long INITIAL_BACKOFF_MS = 1000L;
     private static final long MAX_BACKOFF_MS = 30_000L;
+    /** Server error codes meaning the resume token can never be used again: InvalidResumeToken,
+     * ChangeStreamFatalError, ChangeStreamHistoryLost. Every other error is retried with the same token. */
+    private static final Set<Integer> TOKEN_REJECTED_CODES = Set.of(260, 280, 286);
     private static final List<Bson> PIPELINE = List.of(Aggregates.match(Filters.and(
             Filters.eq("operationType", "insert"),
             Filters.in("ns.coll", CONFIG_COLLECTION, BINARY_COLLECTION))));
@@ -73,6 +78,7 @@ public class ChangeStreamService {
     private volatile MongoChangeStreamCursor<ChangeStreamDocument<Document>> currentCursor;
     private volatile BsonDocument resumeToken;
     private volatile boolean shuttingDown = false;
+    private final AtomicInteger reconnectCount = new AtomicInteger();
 
     public ChangeStreamService(@Autowired(required = false) MongoTemplate mongoTemplate) {
         this.mongoTemplate = mongoTemplate;
@@ -114,7 +120,14 @@ public class ChangeStreamService {
         eventMode = EventMode.CHANGE_STREAM;
         log.info("Live events run in CHANGE_STREAM mode (database-level watch on {} and {}).",
                 CONFIG_COLLECTION, BINARY_COLLECTION);
-        changeStreamExecutor.submit(this::readLoop);
+        changeStreamExecutor.submit(() -> {
+            try {
+                readLoop();
+            } catch (Throwable t) {
+                log.error("MongoDB Change Stream listener stopped unexpectedly; live events are no longer delivered.", t);
+                throw t;
+            }
+        });
     }
 
     private MongoChangeStreamCursor<ChangeStreamDocument<Document>> openCursor(BsonDocument token) {
@@ -125,15 +138,28 @@ public class ChangeStreamService {
         return stream.cursor();
     }
 
-    /** Reopens after an error: from the resume token when possible, otherwise from now. */
+    /** True when the server says the resume token can no longer be used, as opposed to a transient failure. */
+    static boolean isTokenRejected(MongoException e) {
+        return TOKEN_REJECTED_CODES.contains(e.getCode());
+    }
+
+    /**
+     * Reopens after an error: from the resume token when possible, otherwise from now. Only a rejected token is
+     * abandoned; any other failure (elections, network errors) propagates so the read loop backs off and retries
+     * with the same token.
+     */
     private MongoChangeStreamCursor<ChangeStreamDocument<Document>> reopenCursor() {
         BsonDocument token = resumeToken;
         if (token != null) {
             try {
                 return openCursor(token);
-            } catch (MongoCommandException e) {
-                log.warn("Change stream resume token rejected ({}); resuming from now, events in the gap are lost.",
-                        e.getErrorCodeName());
+            } catch (MongoException e) {
+                if (!isTokenRejected(e)) {
+                    throw e;
+                }
+                log.warn("Change stream resume token rejected (code {}: {}); resuming from now, events in the gap are lost.",
+                        e.getCode(), e.getMessage());
+                resumeToken = null;
             }
         } else {
             log.warn("No change stream resume token; resuming from now, events in the gap are lost.");
@@ -150,6 +176,7 @@ public class ChangeStreamService {
                 if (cursor == null) {
                     cursor = reopenCursor();
                     currentCursor = cursor;
+                    reconnectCount.incrementAndGet();
                     log.info("MongoDB Change Stream reconnected.");
                 }
                 while (!shuttingDown) {
@@ -238,6 +265,11 @@ public class ChangeStreamService {
     /** Closes the active cursor so the read loop must reconnect. For tests only. */
     void closeCurrentCursorForTest() {
         closeQuietly(currentCursor);
+    }
+
+    /** Number of successful reconnects since startup. For tests only. */
+    int reconnectCountForTest() {
+        return reconnectCount.get();
     }
 
     public EventMode getEventMode() {

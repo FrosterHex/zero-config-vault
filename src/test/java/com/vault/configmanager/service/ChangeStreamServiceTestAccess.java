@@ -11,4 +11,8 @@ public final class ChangeStreamServiceTestAccess {
     public static void closeCurrentCursor(ChangeStreamService service) {
         service.closeCurrentCursorForTest();
     }
+
+    public static int reconnectCount(ChangeStreamService service) {
+        return service.reconnectCountForTest();
+    }
 }

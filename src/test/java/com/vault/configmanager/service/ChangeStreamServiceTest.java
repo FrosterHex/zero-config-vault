@@ -74,6 +74,16 @@ class ChangeStreamServiceTest {
     }
 
     @Test
+    void isTokenRejected_onlyForResumeTokenErrorCodes() {
+        for (int code : new int[]{286, 280, 260}) {
+            assertTrue(ChangeStreamService.isTokenRejected(new com.mongodb.MongoException(code, "rejected")), "code " + code);
+        }
+        for (int code : new int[]{10107, 11602, 91}) {
+            assertFalse(ChangeStreamService.isTokenRejected(new com.mongodb.MongoException(code, "transient")), "code " + code);
+        }
+    }
+
+    @Test
     void nullMongoTemplate_operatesInInternalEventBusMode() {
         ChangeStreamService standaloneService = new ChangeStreamService(null);
         standaloneService.startChangeStreamListener();

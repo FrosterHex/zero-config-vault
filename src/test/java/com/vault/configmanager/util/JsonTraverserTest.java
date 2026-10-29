@@ -127,4 +127,31 @@ class JsonTraverserTest {
         Document decryptedSettings = (Document) decryptedDoc.get("secure_settings");
         assertEquals("rsa-priv-key-data", decryptedSettings.getString("private_key"));
     }
+
+    private static Map<String, Object> envelope() {
+        return Map.of("iv", "aXY=", "cipher_text", "Y3Q=", "encryption_algo", "AES-256-GCM");
+    }
+
+    @Test
+    void findEncryptedEnvelopePath_detectsNestedEnvelope() {
+        Document payload = new Document("database",
+                new Document("secure_settings", new Document("password", new Document(envelope()))));
+
+        assertEquals(java.util.Optional.of("database.secure_settings.password"),
+                jsonTraverser.findEncryptedEnvelopePath(payload));
+    }
+
+    @Test
+    void findEncryptedEnvelopePath_plainStrings_empty() {
+        Document payload = new Document("secure_settings", new Document("password", "plain"));
+
+        assertTrue(jsonTraverser.findEncryptedEnvelopePath(payload).isEmpty());
+    }
+
+    @Test
+    void findEncryptedEnvelopePath_envelopeOutsideSecureSettings_empty() {
+        Document payload = new Document("other", new Document("password", new Document(envelope())));
+
+        assertTrue(jsonTraverser.findEncryptedEnvelopePath(payload).isEmpty());
+    }
 }

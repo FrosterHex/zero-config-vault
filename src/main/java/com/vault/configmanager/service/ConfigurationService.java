@@ -142,7 +142,11 @@ public class ConfigurationService {
         Document rawPayload = resolveMaskedPlaceholders(new Document(request.getPayload()),
                 () -> latestOpt.map(v -> jsonTraverser.decryptDocument(v.getPayload())).orElse(null));
 
-        // 2. Encrypt secure_settings
+        // 2. Refuse client-supplied ciphertext, then encrypt secure_settings
+        jsonTraverser.findEncryptedEnvelopePath(rawPayload).ifPresent(path -> {
+            throw new IllegalArgumentException(
+                    "secure_settings." + path + " must be a plain value; encrypted envelopes cannot be submitted");
+        });
         Document encryptedPayload = jsonTraverser.encryptDocument(rawPayload);
 
         // 3. Compute canonical SHA-512 fingerprint on encrypted payload

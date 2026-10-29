@@ -455,6 +455,23 @@ class ConfigurationServiceTest {
     }
 
     @Test
+    void create_withEnvelope_rejected() {
+        when(configurationRepository.findTopByApplicationNameAndEnvironmentOrderByVersionDesc("app", "prod"))
+                .thenReturn(Optional.empty());
+        ConfigRequest request = new ConfigRequest("app", "prod",
+                Map.of("database", Map.of("secure_settings", Map.of("password",
+                        Map.of("iv", "aXY=", "cipher_text", "Y3Q=", "encryption_algo", "AES-256-GCM")))),
+                Map.of());
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> configurationService.createConfiguration(request, "127.0.0.1", "k"));
+
+        assertEquals("secure_settings.database.secure_settings.password must be a plain value; "
+                + "encrypted envelopes cannot be submitted", ex.getMessage());
+        verify(configurationRepository, never()).save(any(VaultDocument.class));
+    }
+
+    @Test
     void create_placeholderOnFirstVersion_rejected() {
         when(configurationRepository.findTopByApplicationNameAndEnvironmentOrderByVersionDesc("app", "prod"))
                 .thenReturn(Optional.empty());

@@ -27,7 +27,7 @@ export function isAllowedPath(segments: string[]): boolean {
   if (segments.length === 0) return false;
   for (const s of segments) {
     if (s === "" || s === "." || s === "..") return false;
-    if (/[/\\%?#]/.test(s)) return false;
+    if (/[/\\%?#\s]/.test(s)) return false;
     for (let i = 0; i < s.length; i++) {
       const c = s.charCodeAt(i);
       if (c <= 0x1f || c === 0x7f) return false;

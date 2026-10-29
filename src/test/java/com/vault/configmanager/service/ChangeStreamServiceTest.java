@@ -62,9 +62,24 @@ class ChangeStreamServiceTest {
     }
 
     @Test
+    void broadcastChange_invokesRegisteredListeners() {
+        java.util.List<ConfigChangeEvent> received = new java.util.ArrayList<>();
+        changeStreamService.addListener(received::add);
+        ConfigChangeEvent event = new ConfigChangeEvent("CREATE", "app", "dev", 1, "h",
+                LocalDateTime.now(), Map.of());
+
+        changeStreamService.broadcastChange(event);
+
+        assertEquals(java.util.List.of(event), received);
+    }
+
+    @Test
     void nullMongoTemplate_operatesInInternalEventBusMode() {
         ChangeStreamService standaloneService = new ChangeStreamService(null);
+        standaloneService.startChangeStreamListener();
         assertFalse(standaloneService.isChangeStreamActive());
+        assertEquals(ChangeStreamService.EventMode.FALLBACK, standaloneService.getEventMode());
+        assertTrue(standaloneService.servicesShouldBroadcast());
 
         SseEmitter emitter = standaloneService.subscribe("app", "dev");
         assertNotNull(emitter);

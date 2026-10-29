@@ -85,6 +85,39 @@ class ConfigurationServiceTest {
         verify(auditService).log(eq("CREATE"), eq("user-service"), eq("prod"), anyString(), anyString(), eq(true), isNull());
     }
 
+    private ConfigurationService serviceWithChangeStream(ChangeStreamService changeStreamService) {
+        return new ConfigurationService(configurationRepository, jsonTraverser, hashingService, cacheService,
+                auditService, objectMapper, new ConfigDiffUtil(), null, changeStreamService, null, null, null);
+    }
+
+    @Test
+    void createConfiguration_changeStreamMode_doesNotBroadcast() {
+        ChangeStreamService changeStreamService = mock(ChangeStreamService.class);
+        when(changeStreamService.servicesShouldBroadcast()).thenReturn(false);
+        when(configurationRepository.findTopByApplicationNameAndEnvironmentOrderByVersionDesc("user-service", "prod"))
+                .thenReturn(Optional.empty());
+        when(configurationRepository.save(any(VaultDocument.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        serviceWithChangeStream(changeStreamService).createConfiguration(
+                new ConfigRequest("user-service", "prod", Map.of("port", 1), Map.of()), "127.0.0.1", "sk-****");
+
+        verify(changeStreamService, never()).broadcastChange(any());
+    }
+
+    @Test
+    void createConfiguration_fallbackMode_broadcastsOnce() {
+        ChangeStreamService changeStreamService = mock(ChangeStreamService.class);
+        when(changeStreamService.servicesShouldBroadcast()).thenReturn(true);
+        when(configurationRepository.findTopByApplicationNameAndEnvironmentOrderByVersionDesc("user-service", "prod"))
+                .thenReturn(Optional.empty());
+        when(configurationRepository.save(any(VaultDocument.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        serviceWithChangeStream(changeStreamService).createConfiguration(
+                new ConfigRequest("user-service", "prod", Map.of("port", 1), Map.of()), "127.0.0.1", "sk-****");
+
+        verify(changeStreamService, times(1)).broadcastChange(any());
+    }
+
     @Test
     void createConfiguration_incrementsVersionSequentially() {
         VaultDocument v1 = new VaultDocument("auth-service", "staging", 1, "hash1",

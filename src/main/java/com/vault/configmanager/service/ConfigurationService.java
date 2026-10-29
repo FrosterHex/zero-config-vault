@@ -145,7 +145,7 @@ public class ConfigurationService {
         // 2. Refuse client-supplied ciphertext, then encrypt secure_settings
         jsonTraverser.findEncryptedEnvelopePath(rawPayload).ifPresent(path -> {
             throw new IllegalArgumentException(
-                    "secure_settings." + path + " must be a plain value; encrypted envelopes cannot be submitted");
+                    path + " must be a plain value; encrypted envelopes cannot be submitted");
         });
         Document encryptedPayload = jsonTraverser.encryptDocument(rawPayload);
 
@@ -345,7 +345,11 @@ public class ConfigurationService {
         Document mergedDoc = Document.parse(objectMapper.valueToTree(mergedNode).toString());
 
         // 3. Create as new incremented revision
-        ConfigRequest request = new ConfigRequest(app, env, mergedDoc, latestDoc.getTags());
+        // A rollback marker describes how latestDoc was made, not the new version
+        Map<String, String> carriedTags = latestDoc.getTags() == null
+                ? new HashMap<>() : new HashMap<>(latestDoc.getTags());
+        carriedTags.remove("rollback_from_version");
+        ConfigRequest request = new ConfigRequest(app, env, mergedDoc, carriedTags);
         return createConfiguration(request, requestingIp, apiKey);
     }
 

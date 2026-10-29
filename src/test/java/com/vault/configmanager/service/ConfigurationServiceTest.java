@@ -409,6 +409,21 @@ class ConfigurationServiceTest {
         return v1;
     }
 
+    @Test
+    void patch_dropsRollbackMarkerFromCarriedTags() {
+        VaultDocument v1 = storedV1WithPassword("real");
+        Map<String, String> storedTags = new HashMap<>(Map.of("rollback_from_version", "1", "release", "r1"));
+        v1.setTags(storedTags);
+
+        configurationService.updateConfigurationPartial("app", "prod",
+                Map.of("database", Map.of("host", "new")), "127.0.0.1", "k");
+
+        org.mockito.ArgumentCaptor<VaultDocument> captor = org.mockito.ArgumentCaptor.forClass(VaultDocument.class);
+        verify(configurationRepository).save(captor.capture());
+        assertEquals(Map.of("release", "r1"), captor.getValue().getTags());
+        assertEquals("1", storedTags.get("rollback_from_version"), "stored map must not be mutated");
+    }
+
     private Document savedPayloadDecrypted() {
         org.mockito.ArgumentCaptor<VaultDocument> captor = org.mockito.ArgumentCaptor.forClass(VaultDocument.class);
         verify(configurationRepository).save(captor.capture());
@@ -466,7 +481,7 @@ class ConfigurationServiceTest {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> configurationService.createConfiguration(request, "127.0.0.1", "k"));
 
-        assertEquals("secure_settings.database.secure_settings.password must be a plain value; "
+        assertEquals("database.secure_settings.password must be a plain value; "
                 + "encrypted envelopes cannot be submitted", ex.getMessage());
         verify(configurationRepository, never()).save(any(VaultDocument.class));
     }

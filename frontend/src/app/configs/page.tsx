@@ -10,6 +10,7 @@ import { JsonTreeEditor } from "@/components/21st/JsonTreeEditor";
 import { IntegrityBadge } from "@/components/integrity-badge";
 import { SecretToggle } from "@/components/secret-toggle";
 import { useVault, Environment } from "@/context/VaultContext";
+import { GuestWriteNotice, GUEST_WRITE_HINT } from "@/components/auth/GuestWriteNotice";
 import {
   vaultApi,
   ConfigResponse,
@@ -20,6 +21,7 @@ import {
   RefreshCw,
   AlertCircle,
   CheckCircle2,
+  RotateCcw,
 } from "lucide-react";
 
 const DEFAULT_PAYLOAD: Record<string, unknown> = {
@@ -49,7 +51,7 @@ const DEFAULT_PAYLOAD: Record<string, unknown> = {
 function ConfigsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { activeEnv, setActiveEnv, activeApp, setActiveApp, refreshKey, apps, envs } = useVault();
+  const { activeEnv, setActiveEnv, activeApp, setActiveApp, refreshKey, apps, envs, canWrite } = useVault();
 
   const [selectedApp, setSelectedApp] = useState(() => searchParams.get("app") || activeApp);
   const [selectedEnv, setSelectedEnv] = useState<Environment>(() => (searchParams.get("env") as Environment) || activeEnv);
@@ -188,6 +190,21 @@ function ConfigsContent() {
     }
   };
 
+  const writable = canWrite(selectedApp);
+
+  const switchToPlayground = () => {
+    setSelectedApp("playground");
+    setActiveApp("playground");
+    setSelectedEnv("development");
+    setActiveEnv("development");
+  };
+
+  const handleResetPlayground = () => {
+    if (confirm(`Reset playground [${selectedEnv}] to v1? This creates a new revision with v1's state.`)) {
+      void handleRollback(1);
+    }
+  };
+
   // Handle Dot-Notation Path Search
   const handlePathSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -280,6 +297,19 @@ function ConfigsContent() {
               </select>
             </div>
 
+            {selectedApp === "playground" && (
+              <button
+                type="button"
+                onClick={handleResetPlayground}
+                disabled={loading}
+                title="Roll the playground back to its seeded v1 state"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-xs font-mono text-amber-200 hover:bg-amber-500/20 hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+                <span>Reset playground</span>
+              </button>
+            )}
+
             {/* Reload Button */}
             <button
               type="button"
@@ -295,6 +325,11 @@ function ConfigsContent() {
 
       {/* Control Banner: Hash, Mask Toggle, Dot-Notation Search */}
       <AccessibleFade delay={0.05}>
+        {!writable && (
+          <div className="mb-2">
+            <GuestWriteNotice onSwitchToPlayground={switchToPlayground} />
+          </div>
+        )}
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-slate-950/40 p-3.5">
           <div className="flex flex-wrap items-center gap-3">
             {/* Active Version Badge */}
@@ -381,6 +416,7 @@ function ConfigsContent() {
                 activeVersion={activeVersion}
                 onSelectVersion={(v) => loadConfig(v)}
                 onRollback={handleRollback}
+                rollbackDisabledReason={writable ? undefined : GUEST_WRITE_HINT}
                 onDiffWithLatest={(v) => {
                   router.push(`/diff?app=${selectedApp}&env=${selectedEnv}&v1=${v}&v2=${versions[0]?.version || 1}`);
                 }}
@@ -394,6 +430,7 @@ function ConfigsContent() {
               <JsonTreeEditor
                 initialValue={editorPayload}
                 onSave={handleCommitRevision}
+                saveDisabledReason={writable ? undefined : GUEST_WRITE_HINT}
               />
             </GlassCard3D>
           </div>

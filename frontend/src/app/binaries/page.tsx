@@ -6,6 +6,7 @@ import { AccessibleFade } from "@/components/motion/AccessibleMotion";
 import { GlassCard3D } from "@/components/ui/GlassCard3D";
 import { useVault, Environment } from "@/context/VaultContext";
 import { vaultApi } from "@/lib/api";
+import { GuestWriteNotice, GUEST_WRITE_HINT } from "@/components/auth/GuestWriteNotice";
 import {
   Download,
   FileCheck,
@@ -33,7 +34,7 @@ interface BinaryItem {
 }
 
 export default function BinariesPage() {
-  const { activeEnv, setActiveEnv, activeApp, setActiveApp, refreshKey, apps, envs } = useVault();
+  const { activeEnv, setActiveEnv, activeApp, setActiveApp, refreshKey, apps, envs, role, canWrite } = useVault();
 
   const [selectedApp, setSelectedApp] = useState(activeApp);
   const [selectedEnv, setSelectedEnv] = useState<Environment>(activeEnv);
@@ -90,7 +91,7 @@ export default function BinariesPage() {
   // Handle file upload
   const handleUploadSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!uploadFile) return;
+    if (!uploadFile || !canWrite(selectedApp)) return;
 
     setUploading(true);
     setUploadSuccess(null);
@@ -111,6 +112,16 @@ export default function BinariesPage() {
     } finally {
       setUploading(false);
     }
+  };
+
+  const writable = canWrite(selectedApp);
+  const isAdmin = role === "admin";
+
+  const switchToPlayground = () => {
+    setSelectedApp("playground");
+    setActiveApp("playground");
+    setSelectedEnv("development");
+    setActiveEnv("development");
   };
 
   const formatBytes = (bytes: number) => {
@@ -197,6 +208,11 @@ export default function BinariesPage() {
 
       {/* 3D Glassmorphic Drag & Drop Upload Zone */}
       <AccessibleFade delay={0.05}>
+        {!writable && (
+          <div className="mb-3">
+            <GuestWriteNotice onSwitchToPlayground={switchToPlayground} />
+          </div>
+        )}
         <GlassCard3D glowColor="emerald">
           <form onSubmit={handleUploadSubmit} className="p-6 space-y-4">
             <div className="flex items-center justify-between border-b border-white/10 pb-3">
@@ -267,8 +283,9 @@ export default function BinariesPage() {
 
               <button
                 type="submit"
-                disabled={!uploadFile || uploading}
-                className="glass-button flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold text-white transition-all disabled:opacity-40"
+                disabled={!uploadFile || uploading || !writable}
+                title={writable ? undefined : GUEST_WRITE_HINT}
+                className="glass-button flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {uploading ? (
                   <>
@@ -365,15 +382,17 @@ export default function BinariesPage() {
                       <Clock className="h-3 w-3" />
                       {new Date(bin.createdAt).toLocaleDateString()}
                     </span>
-                    <a
-                      href={vaultApi.getBinaryDownloadUrl(bin.applicationName, bin.environment, bin.filename, bin.version)}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="glass-button flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-white transition-all"
-                    >
-                      <Download className="h-3.5 w-3.5" />
-                      <span>Download</span>
-                    </a>
+                    {isAdmin && (
+                      <a
+                        href={vaultApi.getBinaryDownloadUrl(bin.applicationName, bin.environment, bin.filename, bin.version)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="glass-button flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-white transition-all"
+                      >
+                        <Download className="h-3.5 w-3.5" />
+                        <span>Download</span>
+                      </a>
+                    )}
                   </div>
                 </div>
               </GlassCard3D>

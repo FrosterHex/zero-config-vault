@@ -17,7 +17,7 @@ Zero-Config Vault stores configuration and secrets for microservices. MongoDB is
 | Backend | Java 17, Spring Boot 3.2.5 (Web, Data MongoDB, Validation), Jackson JSON and YAML, Springdoc OpenAPI, JCA (AES-256-GCM, SHA-512, SHA-256) |
 | Database | MongoDB 7: Atlas M0 in production, a single-node replica set `rs0` locally |
 | Starter | Spring Boot auto-configuration, an `EnvironmentPostProcessor`, Spring Cloud Context's `PropertySourceLocator`, and the Java HTTP client for SSE |
-| Dashboard | Next.js 15.5 (App Router) with React 19, Tailwind CSS 4, Framer Motion, Three.js, Lucide icons; fonts Cormorant Garamond, Montserrat and JetBrains Mono |
+| Dashboard | Next.js 15.5 (App Router) with React 19, Tailwind CSS 4, Framer Motion, Three.js, Lucide icons; fonts Cormorant Garamond, Montserrat and JetBrains Mono. The landing page adds Inter, Lenis and a Three.js planet (glTF with Draco). |
 | Tests | JUnit 5 and Mockito; Testcontainers (`mongo:7.0` replica set) for integration tests; Vitest for the dashboard |
 | Hosting | Render (backend, Docker), Vercel (dashboard), MongoDB Atlas (database) |
 
@@ -110,6 +110,7 @@ Lombok is not used; all accessors and constructors are written out.
 ### 3.9 Dashboard
 
 - **Pages:**
+  - `/`: landing page with a WebGL planet, the feature list, live vault statistics and links into the dashboard.
   - `/dashboard`: statistics and telemetry.
   - `/configs`: tree editor, version timeline, rollback, integrity badge, secret reveal for admins.
   - `/diff`: split and unified views.

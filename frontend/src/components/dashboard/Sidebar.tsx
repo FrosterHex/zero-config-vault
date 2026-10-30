@@ -37,7 +37,7 @@ export interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { id: "dashboard", title: "Overview", href: "/", icon: LayoutDashboard },
+  { id: "dashboard", title: "Overview", href: "/dashboard", icon: LayoutDashboard },
   { id: "configs", title: "Configurations", href: "/configs", icon: Layers },
   { id: "diff", title: "Diff Engine", href: "/diff", icon: GitCompare },
   { id: "binaries", title: "GridFS Binaries", href: "/binaries", icon: HardDrive },
@@ -124,8 +124,7 @@ export function Sidebar() {
 
         {navItems.map((item) => {
           const Icon = item.icon;
-          // /dashboard renders the same overview page as /.
-          const isActive = pathname === item.href || (item.href === "/" && pathname === "/dashboard");
+          const isActive = pathname === item.href;
 
           return (
             <Link

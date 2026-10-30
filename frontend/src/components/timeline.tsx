@@ -19,7 +19,7 @@ export function RevisionTimeline({
   onSelectV2,
 }: RevisionTimelineProps) {
   return (
-    <div className="relative pl-6 space-y-6 before:absolute before:left-2.5 before:top-3 before:bottom-3 before:w-0.5 before:bg-gradient-to-b before:from-mint-500 before:via-blue-500 before:to-slate-800">
+    <div className="relative pl-6 space-y-6 before:absolute before:left-2.5 before:top-3 before:bottom-3 before:w-0.5 before:bg-gradient-to-b before:from-indigo-500 before:via-purple-500 before:to-slate-800">
       {versions.map((ver, idx) => {
         const isV1 = ver.version === selectedV1;
         const isV2 = ver.version === selectedV2;
@@ -33,7 +33,7 @@ export function RevisionTimeline({
                 isLatest
                   ? "border-emerald-400 bg-emerald-950 text-emerald-400 shadow-sm shadow-emerald-400/50"
                   : isV1 || isV2
-                  ? "border-mint-400 bg-mint-950 text-mint-400 shadow-sm shadow-mint-400/50"
+                  ? "border-indigo-400 bg-indigo-950 text-indigo-400 shadow-sm shadow-indigo-400/50"
                   : "border-slate-600 bg-slate-900 text-slate-400 group-hover:border-white group-hover:text-white"
               }`}
             >
@@ -44,9 +44,9 @@ export function RevisionTimeline({
             <div
               className={`rounded-xl border p-3.5 transition-all backdrop-blur-sm ${
                 isV1 && isV2
-                  ? "border-blue-500/50 bg-blue-950/20 shadow-lg shadow-blue-500/10"
+                  ? "border-purple-500/50 bg-purple-950/20 shadow-lg shadow-purple-500/10"
                   : isV1
-                  ? "border-mint-500/50 bg-mint-950/20 shadow-lg shadow-mint-500/10"
+                  ? "border-indigo-500/50 bg-indigo-950/20 shadow-lg shadow-indigo-500/10"
                   : isV2
                   ? "border-emerald-500/50 bg-emerald-950/20 shadow-lg shadow-emerald-500/10"
                   : "border-white/10 bg-slate-900/40 hover:border-white/20 hover:bg-slate-900/60"
@@ -63,7 +63,7 @@ export function RevisionTimeline({
                     </span>
                   )}
                   {isV1 && (
-                    <span className="rounded bg-mint-500/20 border border-mint-500/30 px-1.5 py-0.2 text-[9px] font-mono font-semibold uppercase tracking-wider text-mint-400">
+                    <span className="rounded bg-indigo-500/20 border border-indigo-500/30 px-1.5 py-0.2 text-[9px] font-mono font-semibold uppercase tracking-wider text-indigo-400">
                       Base (V1)
                     </span>
                   )}
@@ -90,7 +90,7 @@ export function RevisionTimeline({
                       key={k}
                       className="inline-flex items-center gap-1 rounded bg-slate-800/60 border border-white/5 px-2 py-0.5 text-[10px] font-mono text-slate-300"
                     >
-                      <Tag className="h-2.5 w-2.5 text-mint-400" />
+                      <Tag className="h-2.5 w-2.5 text-indigo-400" />
                       <span>{k}:{val}</span>
                     </span>
                   ))}
@@ -103,7 +103,7 @@ export function RevisionTimeline({
                   onClick={() => onSelectV1(ver.version)}
                   className={`rounded px-2.5 py-1 transition-all ${
                     isV1
-                      ? "bg-mint-600 text-white font-bold"
+                      ? "bg-indigo-600 text-white font-bold"
                       : "bg-white/5 text-slate-400 hover:text-white hover:bg-white/10"
                   }`}
                 >

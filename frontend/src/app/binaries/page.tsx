@@ -137,10 +137,10 @@ export default function BinariesPage() {
                 MongoDB GridFS Storage Engine
               </span>
             </div>
-            <h1 className="font-display text-4xl font-bold tracking-tight text-white">
+            <h1 className="font-['Cormorant_Garamond',serif] text-4xl font-bold tracking-tight text-white">
               Binary Configurations & Keystores
             </h1>
-            <p className="text-xs sm:text-sm text-slate-400 font-sans font-light mt-1 max-w-2xl">
+            <p className="text-xs sm:text-sm text-slate-400 font-['Montserrat',sans-serif] font-light mt-1 max-w-2xl">
               Store, version and download binary files (TLS certificates, Java .jks keystores, PEM bundles) in GridFS.
               Each upload is a new version with a SHA-512 hash; files are stored as uploaded and are not encrypted by the vault.
             </p>
@@ -202,7 +202,7 @@ export default function BinariesPage() {
             <div className="flex items-center justify-between border-b border-white/10 pb-3">
               <div className="flex items-center gap-2">
                 <UploadCloud className="h-4 w-4 text-emerald-400" />
-                <h3 className="font-sans text-xs font-bold uppercase tracking-wider text-white">
+                <h3 className="font-['Montserrat',sans-serif] text-xs font-bold uppercase tracking-wider text-white">
                   Upload Binary Keystore or Certificate to GridFS
                 </h3>
               </div>
@@ -248,7 +248,7 @@ export default function BinariesPage() {
                   </div>
                 ) : (
                   <div>
-                    <p className="font-sans text-xs font-semibold text-white">
+                    <p className="font-['Montserrat',sans-serif] text-xs font-semibold text-white">
                       Click to browse or drag & drop binary files here
                     </p>
                     <p className="text-[11px] font-mono text-slate-500 mt-1">

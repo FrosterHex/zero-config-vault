@@ -46,7 +46,7 @@ export function DiffViewer({ diff, v1, v2, appName, env }: DiffViewerProps) {
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-slate-950/40 px-4 py-3">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
-            <span className="rounded bg-mint-500/20 border border-mint-500/30 px-2 py-0.5 text-xs font-mono font-bold text-mint-400">
+            <span className="rounded bg-indigo-500/20 border border-indigo-500/30 px-2 py-0.5 text-xs font-mono font-bold text-indigo-400">
               v{v1}
             </span>
             <span className="text-slate-500 text-xs font-mono">→</span>
@@ -102,7 +102,7 @@ export function DiffViewer({ diff, v1, v2, appName, env }: DiffViewerProps) {
               onClick={() => setViewMode("split")}
               className={`inline-flex items-center gap-1 rounded-md px-2 py-1 transition-all ${
                 viewMode === "split"
-                  ? "bg-mint-600 text-white font-medium"
+                  ? "bg-indigo-600 text-white font-medium"
                   : "text-slate-400 hover:text-white"
               }`}
             >
@@ -114,7 +114,7 @@ export function DiffViewer({ diff, v1, v2, appName, env }: DiffViewerProps) {
               onClick={() => setViewMode("unified")}
               className={`inline-flex items-center gap-1 rounded-md px-2 py-1 transition-all ${
                 viewMode === "unified"
-                  ? "bg-mint-600 text-white font-medium"
+                  ? "bg-indigo-600 text-white font-medium"
                   : "text-slate-400 hover:text-white"
               }`}
             >
@@ -136,7 +136,7 @@ export function DiffViewer({ diff, v1, v2, appName, env }: DiffViewerProps) {
       </div>
 
       {/* Main Diff Content */}
-      <div className="flex-1 overflow-auto p-4 font-code text-xs">
+      <div className="flex-1 overflow-auto p-4 font-mono text-xs">
         {totalChanges === 0 ? (
           <div className="flex flex-col items-center justify-center h-48 text-center">
             <CheckCircle className="h-8 w-8 text-emerald-400 mb-2" />

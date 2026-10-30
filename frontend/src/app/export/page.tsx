@@ -83,23 +83,23 @@ export default function ExportPage() {
     <DashboardShell>
       {/* 3D Cyber Atmosphere Background Elements */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden -z-10 bg-grid-cyber">
-        <div className="absolute top-1/4 left-1/3 h-80 w-80 rounded-full bg-blue-600/15 blur-[130px]" />
-        <div className="absolute top-1/3 right-1/4 h-80 w-80 rounded-full bg-mint-600/10 blur-[120px]" />
+        <div className="absolute top-1/4 left-1/3 h-80 w-80 rounded-full bg-purple-600/15 blur-[130px]" />
+        <div className="absolute top-1/3 right-1/4 h-80 w-80 rounded-full bg-indigo-600/10 blur-[120px]" />
       </div>
 
       <AccessibleFade delay={0}>
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-4 border-b border-white/10">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <span className="flex h-2 w-2 rounded-full bg-blue-400" />
-              <span className="text-[11px] font-mono uppercase tracking-widest text-blue-400 font-semibold">
+              <span className="flex h-2 w-2 rounded-full bg-purple-400" />
+              <span className="text-[11px] font-mono uppercase tracking-widest text-purple-400 font-semibold">
                 Multi-Format Transformation Engine
               </span>
             </div>
-            <h1 className="font-display text-4xl font-bold tracking-tight text-white">
+            <h1 className="font-['Cormorant_Garamond',serif] text-4xl font-bold tracking-tight text-white">
               Export Studio
             </h1>
-            <p className="text-xs sm:text-sm text-slate-400 font-sans font-light mt-1 max-w-2xl">
+            <p className="text-xs sm:text-sm text-slate-400 font-['Montserrat',sans-serif] font-light mt-1 max-w-2xl">
               Transform live Vault configuration documents on-the-fly into structured JSON, YAML, or flat .env files
               for containerized microservices and CI/CD pipelines.
             </p>
@@ -126,7 +126,7 @@ export default function ExportPage() {
               <select
                 value={selectedEnv}
                 onChange={(e) => selectEnv(e.target.value as Environment)}
-                className="bg-transparent font-mono text-blue-400 text-xs font-semibold focus:outline-none cursor-pointer"
+                className="bg-transparent font-mono text-purple-400 text-xs font-semibold focus:outline-none cursor-pointer"
               >
                 {envs.map((e) => (
                   <option key={e} value={e} className="bg-slate-900 text-white">
@@ -143,7 +143,7 @@ export default function ExportPage() {
                   onClick={() => setFormat(f)}
                   className={`rounded-md px-2.5 py-1 text-xs font-mono font-bold uppercase transition-all ${
                     format === f
-                      ? "bg-blue-600 text-white shadow-sm"
+                      ? "bg-purple-600 text-white shadow-sm"
                       : "text-slate-400 hover:text-white"
                   }`}
                 >
@@ -156,18 +156,18 @@ export default function ExportPage() {
               onClick={loadExport}
               className="rounded-lg border border-white/10 bg-white/5 p-2 text-slate-400 hover:text-white transition-colors"
             >
-              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin text-blue-400" : ""}`} />
+              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin text-purple-400" : ""}`} />
             </button>
           </div>
         </div>
       </AccessibleFade>
 
       <AccessibleFade delay={0.08}>
-        <GlassCard3D glowColor="blue">
+        <GlassCard3D glowColor="purple">
           <div className="p-6 space-y-4">
             <div className="flex items-center justify-between border-b border-white/10 pb-4">
               <div className="flex items-center gap-3">
-                <FileCode className="h-5 w-5 text-blue-400" />
+                <FileCode className="h-5 w-5 text-purple-400" />
                 <span className="font-mono text-sm font-bold text-white">
                   {selectedApp}-{selectedEnv}.{format === "env" ? "env" : format}
                 </span>
@@ -200,7 +200,7 @@ export default function ExportPage() {
                 <span>{exportError}</span>
               </div>
             ) : (
-              <pre className="overflow-x-auto rounded-xl bg-slate-950/80 p-5 font-code text-xs text-slate-300 border border-white/5 max-h-[500px] leading-relaxed">
+              <pre className="overflow-x-auto rounded-xl bg-slate-950/80 p-5 font-mono text-xs text-slate-300 border border-white/5 max-h-[500px] leading-relaxed">
                 <code>{exportedText}</code>
               </pre>
             )}

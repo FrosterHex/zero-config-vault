@@ -222,8 +222,8 @@ function ConfigsContent() {
     <DashboardShell>
       {/* 3D Cyber Atmosphere Background Elements */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden -z-10 bg-grid-cyber">
-        <div className="absolute top-1/4 left-1/4 h-80 w-80 rounded-full bg-mint-600/15 blur-[120px]" />
-        <div className="absolute top-1/3 right-1/4 h-80 w-80 rounded-full bg-blue-600/10 blur-[130px]" />
+        <div className="absolute top-1/4 left-1/4 h-80 w-80 rounded-full bg-indigo-600/15 blur-[120px]" />
+        <div className="absolute top-1/3 right-1/4 h-80 w-80 rounded-full bg-purple-600/10 blur-[130px]" />
       </div>
 
       {/* Editorial Header */}
@@ -231,15 +231,15 @@ function ConfigsContent() {
         <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 pb-4 border-b border-white/10">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <span className="flex h-2 w-2 rounded-full bg-mint-400" />
-              <span className="text-[11px] font-mono uppercase tracking-widest text-mint-400 font-semibold">
+              <span className="flex h-2 w-2 rounded-full bg-indigo-400" />
+              <span className="text-[11px] font-mono uppercase tracking-widest text-indigo-400 font-semibold">
                 Dynamic Configuration Console
               </span>
             </div>
-            <h1 className="font-display text-4xl md:text-5xl font-bold tracking-tight text-white leading-tight">
+            <h1 className="font-['Cormorant_Garamond',serif] text-4xl md:text-5xl font-bold tracking-tight text-white leading-tight">
               Configuration Ledger & Time Machine
             </h1>
-            <p className="text-xs md:text-sm text-slate-400 max-w-2xl font-sans font-light mt-1">
+            <p className="text-xs md:text-sm text-slate-400 max-w-2xl font-['Montserrat',sans-serif] font-light mt-1">
               Interactive JSON tree viewer with automated envelope encryption, live secret masking,
               version history, and rollback.
             </p>
@@ -299,7 +299,7 @@ function ConfigsContent() {
               title="Refresh configuration from server"
               className="rounded-lg border border-white/10 bg-white/5 p-2 text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
             >
-              <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin text-mint-400" : ""}`} />
+              <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin text-indigo-400" : ""}`} />
             </button>
           </div>
         </div>
@@ -315,8 +315,8 @@ function ConfigsContent() {
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-slate-950/40 p-3.5">
           <div className="flex flex-wrap items-center gap-3">
             {/* Active Version Badge */}
-            <div className="inline-flex items-center gap-1.5 rounded-lg border border-mint-500/30 bg-mint-950/20 px-2.5 py-1 text-xs font-mono">
-              <span className="text-mint-400 font-bold">
+            <div className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-500/30 bg-indigo-950/20 px-2.5 py-1 text-xs font-mono">
+              <span className="text-indigo-400 font-bold">
                 {activeVersion > 0 ? `Revision v${activeVersion}` : "No revision yet"}
               </span>
               {currentConfig && (
@@ -347,7 +347,7 @@ function ConfigsContent() {
                 placeholder="Query path: e.g. database.host"
                 value={pathQuery}
                 onChange={(e) => setPathQuery(e.target.value)}
-                className="h-8 w-52 sm:w-64 rounded-lg border border-white/10 bg-black/40 pl-8 pr-3 text-xs text-white placeholder-slate-500 font-mono focus:border-mint-500 focus:outline-none focus:ring-1 focus:ring-mint-500"
+                className="h-8 w-52 sm:w-64 rounded-lg border border-white/10 bg-black/40 pl-8 pr-3 text-xs text-white placeholder-slate-500 font-mono focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
               />
             </div>
             <button
@@ -361,9 +361,9 @@ function ConfigsContent() {
 
         {/* Path Search Result Banner */}
         {pathResult && (
-          <div className="mt-2 rounded-lg border border-mint-500/30 bg-mint-950/40 px-3.5 py-2 text-xs font-mono text-mint-200 flex items-center justify-between">
+          <div className="mt-2 rounded-lg border border-indigo-500/30 bg-indigo-950/40 px-3.5 py-2 text-xs font-mono text-indigo-200 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="text-mint-400 font-semibold">{pathQuery}:</span>
+              <span className="text-indigo-400 font-semibold">{pathQuery}:</span>
               <span className="text-white font-bold">{pathResult}</span>
             </div>
             <button
@@ -400,7 +400,7 @@ function ConfigsContent() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-[580px]">
           {/* Left Panel: Version History Data Grid with 3D Tilt */}
           <div className="lg:col-span-5 h-[580px]">
-            <GlassCard3D glowColor="mint" className="h-full">
+            <GlassCard3D glowColor="indigo" className="h-full">
               <ConfigDataGrid
                 versions={versions}
                 activeVersion={activeVersion}
@@ -418,7 +418,7 @@ function ConfigsContent() {
 
           {/* Right Panel: Interactive JSON Tree & Code Editor with 3D Tilt */}
           <div className="lg:col-span-7 h-[580px]">
-            <GlassCard3D glowColor="blue" className="h-full">
+            <GlassCard3D glowColor="purple" className="h-full">
               <JsonTreeEditor
                 initialValue={editorPayload}
                 onSave={handleCommitRevision}

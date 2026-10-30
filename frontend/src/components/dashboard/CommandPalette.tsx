@@ -161,15 +161,15 @@ export function CommandPalette() {
         role="dialog"
         aria-modal="true"
         aria-label="Search"
-        className="relative w-full max-w-2xl rounded-2xl border border-mint-500/30 bg-[#0B0F19]/95 p-4 shadow-2xl shadow-mint-950/50 backdrop-blur-2xl overflow-hidden"
+        className="relative w-full max-w-2xl rounded-2xl border border-indigo-500/30 bg-[#0B0F19]/95 p-4 shadow-2xl shadow-indigo-950/50 backdrop-blur-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Glow orb */}
-        <div className="pointer-events-none absolute -top-20 -right-20 h-56 w-56 rounded-full bg-mint-500/20 blur-[80px]" />
+        <div className="pointer-events-none absolute -top-20 -right-20 h-56 w-56 rounded-full bg-indigo-500/20 blur-[80px]" />
 
         {/* Search Input Bar */}
         <div className="relative flex items-center border-b border-white/10 pb-3">
-          <Search className="h-5 w-5 text-mint-400 ml-2" />
+          <Search className="h-5 w-5 text-indigo-400 ml-2" />
           <input
             ref={inputRef}
             type="text"
@@ -200,10 +200,10 @@ export function CommandPalette() {
         <div className="mt-3 max-h-96 overflow-y-auto space-y-4 pr-1 text-xs">
           {/* Dot-Notation Path Live Resolution Result */}
           {query.includes(".") && (
-            <div className="rounded-xl border border-mint-500/30 bg-mint-950/40 p-3">
+            <div className="rounded-xl border border-indigo-500/30 bg-indigo-950/40 p-3">
               <div className="flex items-center justify-between mb-1.5">
-                <span className="flex items-center gap-1.5 font-mono text-[11px] font-bold text-mint-300">
-                  <Sparkles className="h-3.5 w-3.5 text-mint-400 animate-spin" />
+                <span className="flex items-center gap-1.5 font-mono text-[11px] font-bold text-indigo-300">
+                  <Sparkles className="h-3.5 w-3.5 text-indigo-400 animate-spin" />
                   Dot-Notation Path Traversal
                 </span>
                 <span className="text-[10px] font-mono text-slate-400">
@@ -286,15 +286,15 @@ export function CommandPalette() {
                   <button
                     key={app}
                     onClick={() => handleSelectApp(app)}
-                    className="flex items-center justify-between rounded-lg border border-white/5 bg-white/5 hover:bg-mint-600/20 hover:border-mint-500/30 p-2.5 text-left transition-all group"
+                    className="flex items-center justify-between rounded-lg border border-white/5 bg-white/5 hover:bg-indigo-600/20 hover:border-indigo-500/30 p-2.5 text-left transition-all group"
                   >
                     <div className="flex items-center gap-2">
-                      <Database className="h-4 w-4 text-mint-400" />
-                      <span className="font-mono font-medium text-white group-hover:text-mint-300">
+                      <Database className="h-4 w-4 text-indigo-400" />
+                      <span className="font-mono font-medium text-white group-hover:text-indigo-300">
                         {app}
                       </span>
                     </div>
-                    <span className="text-[10px] font-mono text-slate-500 group-hover:text-mint-400 flex items-center gap-1">
+                    <span className="text-[10px] font-mono text-slate-500 group-hover:text-indigo-400 flex items-center gap-1">
                       Inspect <ArrowRight className="h-3 w-3" />
                     </span>
                   </button>
@@ -316,14 +316,14 @@ export function CommandPalette() {
                     <button
                       key={m.href}
                       onClick={() => handleSelectModule(m.href)}
-                      className="w-full flex items-center justify-between rounded-lg border border-white/5 bg-white/5 hover:bg-mint-600/20 hover:border-mint-500/30 p-2.5 text-left transition-all group"
+                      className="w-full flex items-center justify-between rounded-lg border border-white/5 bg-white/5 hover:bg-indigo-600/20 hover:border-indigo-500/30 p-2.5 text-left transition-all group"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-mint-500/10 text-mint-400 border border-mint-500/20">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
                           <Icon className="h-4 w-4" />
                         </div>
                         <div>
-                          <div className="font-semibold text-white group-hover:text-mint-300">
+                          <div className="font-semibold text-white group-hover:text-indigo-300">
                             {m.title}
                           </div>
                           <div className="text-[11px] text-slate-400 font-light">{m.desc}</div>
@@ -354,7 +354,7 @@ export function CommandPalette() {
             <span><kbd className="text-slate-400 border border-white/10 px-1 rounded">↵</kbd> Select</span>
             <span><kbd className="text-slate-400 border border-white/10 px-1 rounded">ESC</kbd> Close</span>
           </div>
-          <span className="text-mint-400 font-medium">Zero-Config Vault OS • Global Search</span>
+          <span className="text-indigo-400 font-medium">Zero-Config Vault OS • Global Search</span>
         </div>
       </div>
     </div>

@@ -4,6 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { AccessibleFade } from "@/components/motion/AccessibleMotion";
+import { VaultHologram3D } from "@/components/3d/VaultHologram3D";
 import { GlassCard3D } from "@/components/ui/GlassCard3D";
 import {
   Layers,
@@ -45,13 +46,23 @@ export default function Home() {
 
   return (
     <DashboardShell>
-      <div className="pointer-events-none fixed inset-0 overflow-hidden -z-10 bg-grid-cyber" />
+      {/* 3D Cyber Atmosphere Background Elements */}
+      <div className="pointer-events-none fixed inset-0 overflow-hidden -z-10 bg-grid-cyber">
+        {/* Floating Cyber Neon Light Orbs */}
+        <div className="absolute top-1/4 left-1/4 h-96 w-96 rounded-full bg-indigo-600/15 blur-[120px]" />
+        <div className="absolute top-1/3 right-1/4 h-[30rem] w-[30rem] rounded-full bg-cyan-500/10 blur-[140px]" />
+        <div className="absolute bottom-10 left-1/3 h-80 w-80 rounded-full bg-purple-600/10 blur-[130px]" />
+      </div>
 
-      {/* Overview hero (the WebGL planet lives on the landing page) */}
+      {/* 3D Holographic Hero Enclave */}
       <AccessibleFade delay={0}>
-        <div className="relative overflow-hidden rounded-[26px] border border-[rgba(150,175,230,0.22)] bg-[radial-gradient(120%_140%_at_50%_0%,rgba(93,240,168,0.12),transparent_55%),rgba(16,24,48,0.65)] backdrop-blur-[18px] p-6 lg:p-10 shadow-[0_30px_80px_-30px_rgba(0,0,0,0.75)]">
-          <div className="relative z-10">
-            <div className="space-y-6 max-w-3xl">
+        <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-slate-900/70 via-slate-950/80 to-[#070b16]/90 backdrop-blur-2xl p-6 lg:p-10 shadow-2xl">
+          {/* Subtle Horizon Ground Grid */}
+          <div className="pointer-events-none absolute bottom-0 inset-x-0 h-40 horizon-grid opacity-60" />
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center relative z-10">
+            {/* Left Column: Vision & Quick Access */}
+            <div className="lg:col-span-7 space-y-6">
               <div className="flex flex-wrap items-center gap-2">
                 <span
                   role="status"
@@ -63,16 +74,19 @@ export default function Home() {
                   />
                   {status.label}
                 </span>
-                <span className="rounded-full border border-mint-500/30 bg-mint-500/10 px-3 py-1 text-[11px] font-mono text-mint-400">
+                <span className="rounded-full border border-indigo-500/30 bg-indigo-500/10 px-3 py-1 text-[11px] font-mono text-indigo-400">
                   AES-256-GCM envelope encryption
                 </span>
               </div>
 
               <div>
-                <h1 className="font-display text-4xl sm:text-5xl font-extrabold tracking-[-0.03em] text-white leading-[1.04]">
-                  Vault <em className="not-italic bg-[linear-gradient(180deg,#5df0a8,#2fd38a)] bg-clip-text text-transparent">overview</em>
+                <h1 className="font-['Cormorant_Garamond',serif] text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white leading-[1.08]">
+                  Zero-Config <br />
+                  <span className="bg-gradient-to-r from-indigo-400 via-cyan-300 to-purple-400 bg-clip-text text-transparent">
+                    Secure Vault OS
+                  </span>
                 </h1>
-                <p className="mt-3 text-sm sm:text-base text-[#9aa6c4] max-w-xl leading-relaxed">
+                <p className="mt-3 text-sm sm:text-base text-slate-300 font-['Montserrat',sans-serif] font-light max-w-xl leading-relaxed">
                   Configuration and secrets for microservices, stored only in MongoDB: a new version for every
                   change with one-click rollback, AES-256-GCM envelope encryption, and live updates from MongoDB
                   change streams.
@@ -83,15 +97,15 @@ export default function Home() {
               <div className="flex flex-wrap items-center gap-3 pt-2">
                 <Link
                   href="/configs"
-                  className="glass-button flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition-all group"
+                  className="glass-button flex items-center gap-2 rounded-xl px-5 py-2.5 text-xs font-semibold text-white transition-all group"
                 >
-                  <Layers className="h-4 w-4" />
+                  <Layers className="h-4 w-4 text-indigo-300 group-hover:rotate-12 transition-transform" />
                   <span>Enter Configuration Studio</span>
-                  <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
+                  <ArrowRight className="h-3.5 w-3.5 text-indigo-300 group-hover:translate-x-0.5 transition-transform" />
                 </Link>
                 <Link
                   href="/diff"
-                  className="flex items-center gap-2 rounded-full border border-[rgba(150,175,230,0.22)] bg-white/[0.04] hover:bg-white/[0.09] px-5 py-2.5 text-sm font-semibold text-[#f3f6ff] transition-all backdrop-blur-md"
+                  className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 px-5 py-2.5 text-xs font-medium text-slate-200 transition-all hover:border-cyan-500/40"
                 >
                   <GitCompare className="h-4 w-4 text-cyan-400" />
                   <span>Delta Studio</span>
@@ -102,7 +116,7 @@ export default function Home() {
                   title="Synchronize live stats"
                   className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 p-2.5 text-slate-400 hover:text-white transition-all"
                 >
-                  <RefreshCw className={`h-4 w-4 ${loadingStats ? "animate-spin text-mint-400" : ""}`} />
+                  <RefreshCw className={`h-4 w-4 ${loadingStats ? "animate-spin text-indigo-400" : ""}`} />
                 </button>
               </div>
 
@@ -117,10 +131,20 @@ export default function Home() {
                   <span>Live updates over Server-Sent Events</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <Cpu className="h-4 w-4 text-blue-400" />
+                  <Cpu className="h-4 w-4 text-purple-400" />
                   <span>Atomic bulk import (transactions)</span>
                 </div>
               </div>
+            </div>
+
+            {/* Right Column: Interactive 3D Holographic Vault Canvas */}
+            <div className="lg:col-span-5 flex items-center justify-center relative min-h-[380px]">
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div className="h-72 w-72 rounded-full border border-indigo-500/20 animate-spin" style={{ animationDuration: "24s" }} />
+                <div className="absolute h-84 w-84 rounded-full border border-dashed border-cyan-500/20 animate-spin" style={{ animationDuration: "36s", animationDirection: "reverse" }} />
+              </div>
+
+              <VaultHologram3D size={420} className="z-10" />
             </div>
           </div>
         </div>
@@ -129,11 +153,11 @@ export default function Home() {
       {/* 3D Glassmorphism Interactive KPI Cards */}
       <AccessibleFade delay={0.08}>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <GlassCard3D tilt glowColor="mint">
+          <GlassCard3D tilt glowColor="indigo">
             <div className="p-5 space-y-3">
               <div className="flex items-center justify-between text-slate-400">
                 <span className="text-[11px] font-mono uppercase tracking-wider">Managed Applications</span>
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-mint-500/10 text-mint-400 border border-mint-500/20">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
                   <Layers className="h-4 w-4" />
                 </div>
               </div>
@@ -171,17 +195,17 @@ export default function Home() {
             </div>
           </GlassCard3D>
 
-          <GlassCard3D tilt glowColor="blue">
+          <GlassCard3D tilt glowColor="purple">
             <div className="p-5 space-y-3">
               <div className="flex items-center justify-between text-slate-400">
                 <span className="text-[11px] font-mono uppercase tracking-wider">GitOps Revisions</span>
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-500/10 text-purple-400 border border-purple-500/20">
                   <GitCompare className="h-4 w-4" />
                 </div>
               </div>
               <div className="flex items-baseline gap-2">
                 <span className="text-3xl font-extrabold text-white font-mono">{totalVers}</span>
-                <span className="text-xs text-blue-400 font-mono">stored versions</span>
+                <span className="text-xs text-purple-400 font-mono">stored versions</span>
               </div>
               <div className="text-[10px] font-mono text-slate-500 pt-2 border-t border-white/5 flex justify-between">
                 <span>Compound unique index</span>
@@ -215,7 +239,7 @@ export default function Home() {
       <AccessibleFade delay={0.16}>
         <div className="space-y-4 pt-2">
           <div className="flex items-center justify-between">
-            <h2 className="font-display text-2xl font-bold text-white">
+            <h2 className="font-['Cormorant_Garamond',serif] text-2xl font-bold text-white">
               Vault System Capabilities
             </h2>
             <span className="text-xs font-mono text-slate-400">Select any module to inspect</span>
@@ -223,17 +247,17 @@ export default function Home() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <Link href="/configs" className="group">
-              <GlassCard3D tilt glowColor="mint" className="h-full">
+              <GlassCard3D tilt glowColor="indigo" className="h-full">
                 <div className="p-5 space-y-3">
                   <div className="flex items-center justify-between">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-mint-500/10 text-mint-400 border border-mint-500/20 group-hover:scale-110 transition-transform">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 group-hover:scale-110 transition-transform">
                       <Layers className="h-5 w-5" />
                     </div>
-                    <span className="text-[10px] font-mono uppercase text-mint-400 bg-mint-500/10 px-2 py-0.5 rounded border border-mint-500/20">
+                    <span className="text-[10px] font-mono uppercase text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">
                       Core Engine
                     </span>
                   </div>
-                  <h3 className="font-sans text-base font-bold text-white group-hover:text-mint-300 transition-colors">
+                  <h3 className="font-['Montserrat',sans-serif] text-base font-bold text-white group-hover:text-indigo-300 transition-colors">
                     Configuration Studio
                   </h3>
                   <p className="text-xs text-slate-400 leading-relaxed font-light">
@@ -254,7 +278,7 @@ export default function Home() {
                       GitOps
                     </span>
                   </div>
-                  <h3 className="font-sans text-base font-bold text-white group-hover:text-cyan-300 transition-colors">
+                  <h3 className="font-['Montserrat',sans-serif] text-base font-bold text-white group-hover:text-cyan-300 transition-colors">
                     Delta Studio & Diff Engine
                   </h3>
                   <p className="text-xs text-slate-400 leading-relaxed font-light">
@@ -275,7 +299,7 @@ export default function Home() {
                       GridFS
                     </span>
                   </div>
-                  <h3 className="font-sans text-base font-bold text-white group-hover:text-emerald-300 transition-colors">
+                  <h3 className="font-['Montserrat',sans-serif] text-base font-bold text-white group-hover:text-emerald-300 transition-colors">
                     GridFS Binary Blobs
                   </h3>
                   <p className="text-xs text-slate-400 leading-relaxed font-light">
@@ -286,17 +310,17 @@ export default function Home() {
             </Link>
 
             <Link href="/export" className="group">
-              <GlassCard3D tilt glowColor="blue" className="h-full">
+              <GlassCard3D tilt glowColor="purple" className="h-full">
                 <div className="p-5 space-y-3">
                   <div className="flex items-center justify-between">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20 group-hover:scale-110 transition-transform">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20 group-hover:scale-110 transition-transform">
                       <FileCode className="h-5 w-5" />
                     </div>
-                    <span className="text-[10px] font-mono uppercase text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">
+                    <span className="text-[10px] font-mono uppercase text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/20">
                       Export
                     </span>
                   </div>
-                  <h3 className="font-sans text-base font-bold text-white group-hover:text-blue-300 transition-colors">
+                  <h3 className="font-['Montserrat',sans-serif] text-base font-bold text-white group-hover:text-purple-300 transition-colors">
                     Export Studio
                   </h3>
                   <p className="text-xs text-slate-400 leading-relaxed font-light">
@@ -317,7 +341,7 @@ export default function Home() {
                       50MB Capped
                     </span>
                   </div>
-                  <h3 className="font-sans text-base font-bold text-white group-hover:text-cyan-300 transition-colors">
+                  <h3 className="font-['Montserrat',sans-serif] text-base font-bold text-white group-hover:text-cyan-300 transition-colors">
                     Capped Audit Log Stream
                   </h3>
                   <p className="text-xs text-slate-400 leading-relaxed font-light">
@@ -328,17 +352,17 @@ export default function Home() {
             </Link>
 
             <Link href="/access" className="group">
-              <GlassCard3D tilt glowColor="mint" className="h-full">
+              <GlassCard3D tilt glowColor="indigo" className="h-full">
                 <div className="p-5 space-y-3">
                   <div className="flex items-center justify-between">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-mint-500/10 text-mint-400 border border-mint-500/20 group-hover:scale-110 transition-transform">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 group-hover:scale-110 transition-transform">
                       <KeyRound className="h-5 w-5" />
                     </div>
-                    <span className="text-[10px] font-mono uppercase text-mint-400 bg-mint-500/10 px-2 py-0.5 rounded border border-mint-500/20">
+                    <span className="text-[10px] font-mono uppercase text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">
                       RBAC
                     </span>
                   </div>
-                  <h3 className="font-sans text-base font-bold text-white group-hover:text-mint-300 transition-colors">
+                  <h3 className="font-['Montserrat',sans-serif] text-base font-bold text-white group-hover:text-indigo-300 transition-colors">
                     Scoped API Key Engine
                   </h3>
                   <p className="text-xs text-slate-400 leading-relaxed font-light">
@@ -349,17 +373,17 @@ export default function Home() {
             </Link>
 
             <Link href="/nosql" className="group">
-              <GlassCard3D tilt glowColor="blue" className="h-full">
+              <GlassCard3D tilt glowColor="purple" className="h-full">
                 <div className="p-5 space-y-3">
                   <div className="flex items-center justify-between">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20 group-hover:scale-110 transition-transform">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20 group-hover:scale-110 transition-transform">
                       <Database className="h-5 w-5" />
                     </div>
-                    <span className="text-[10px] font-mono uppercase text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">
+                    <span className="text-[10px] font-mono uppercase text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/20">
                       NoSQL Core
                     </span>
                   </div>
-                  <h3 className="font-sans text-base font-bold text-white group-hover:text-blue-300 transition-colors">
+                  <h3 className="font-['Montserrat',sans-serif] text-base font-bold text-white group-hover:text-purple-300 transition-colors">
                     NoSQL Deep Dive & Sharding
                   </h3>
                   <p className="text-xs text-slate-400 leading-relaxed font-light">

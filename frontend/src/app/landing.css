@@ -1,5 +1,5 @@
 /* Landing page styles from the Ascend design (getlayers.ai), scoped under .landing so they never
-   reach the dashboard. The colour/size tokens (--bg, --accent, --glass, ...) live on :root in globals.css. */
+   reach the dashboard. The colour/size tokens are scoped here too: the dashboard keeps its own palette. */
 
 /* Lenis (classes are only ever added while the landing page is mounted) */
 html.lenis, html.lenis body { height: auto; }
@@ -9,6 +9,21 @@ html.lenis, html.lenis body { height: auto; }
 
 .landing {
   --maxw: 1180px;
+  --bg: #04060f;
+  --bg-2: #060a18;
+  --ink: #f3f6ff;
+  --muted: #9aa6c4;
+  --muted-2: #6b7796;
+  --line: rgba(150, 175, 230, 0.12);
+  --line-strong: rgba(150, 175, 230, 0.22);
+  --accent: #5df0a8;
+  --accent-2: #2fd38a;
+  --accent-ink: #032018;
+  --glass: rgba(12, 18, 38, 0.55);
+  --glass-2: rgba(16, 24, 48, 0.65);
+  --radius: 18px;
+  --radius-lg: 26px;
+  --shadow: 0 30px 80px -30px rgba(0, 0, 0, 0.75);
   position: relative;
   min-height: 100vh;
   overflow-x: clip;
@@ -64,10 +79,14 @@ html.lenis, html.lenis body { height: auto; }
 .landing .hero-sub { margin-top: 24px; max-width: 560px; font-size: clamp(16px,2vw,19px); line-height: 1.6; color: var(--muted); text-shadow: 0 1px 24px rgba(0,0,0,.55); }
 .landing .hero-actions { margin-top: 38px; display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
 .landing .logos { position: relative; z-index: 1; text-align: center; padding: 0 24px clamp(36px,6vw,64px); }
-.landing .logos-label { font-size: 12px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted-2); }
-.landing .logos-row { margin-top: 18px; display: flex; flex-wrap: wrap; justify-content: center; gap: clamp(24px,5vw,56px); }
-.landing .logo { font-size: 17px; font-weight: 700; color: var(--muted-2); opacity: .8; transition: color .2s ease, opacity .2s ease; }
-.landing .logo:hover { color: var(--ink); opacity: 1; }
+/* Dark glass chips: plain muted text disappeared into the planet behind it */
+.landing .logos-label { display: inline-flex; align-items: center; gap: 12px; font-size: 11px; font-weight: 600; letter-spacing: .2em; text-transform: uppercase; color: var(--muted); }
+.landing .logos-label::before, .landing .logos-label::after { content: ""; width: 36px; height: 1px; background: linear-gradient(90deg, transparent, var(--line-strong)); }
+.landing .logos-label::after { transform: scaleX(-1); }
+.landing .logos-row { margin: 18px auto 0; max-width: 760px; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.landing .logo { display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 999px; font-size: 14px; font-weight: 600; letter-spacing: .01em; color: #d4dcf2; background: rgba(6,10,24,.55); border: 1px solid var(--line-strong); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); transition: color .2s ease, border-color .2s ease, background .2s ease; }
+.landing .logo::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px rgba(93,240,168,.6); }
+.landing .logo:hover { color: var(--ink); border-color: rgba(93,240,168,.35); background: rgba(12,18,38,.7); }
 
 /* SECTION 2 · FEATURES */
 .landing .feature-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 18px; }
@@ -142,7 +161,7 @@ html.lenis, html.lenis body { height: auto; }
 }
 @media (max-width: 380px) {
   .landing .stats { grid-template-columns: 1fr; }
-  .landing .logo { font-size: 15px; }
+  .landing .logo { font-size: 13px; padding: 7px 13px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .landing [data-reveal] { opacity: 1; transform: none; transition: none; }

@@ -56,8 +56,8 @@ export function ConfigDataGrid({
       {/* Table Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-slate-950/40 px-4 py-3">
         <div className="flex items-center gap-2">
-          <History className="h-4 w-4 text-mint-400" />
-          <h3 className="font-sans text-xs font-semibold uppercase tracking-wider text-white">
+          <History className="h-4 w-4 text-indigo-400" />
+          <h3 className="font-['Montserrat',sans-serif] text-xs font-semibold uppercase tracking-wider text-white">
             Immutable Revision Ledger
           </h3>
           <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-mono text-slate-300">
@@ -73,7 +73,7 @@ export function ConfigDataGrid({
             placeholder="Search version, hash, or tags..."
             value={filterText}
             onChange={(e) => setFilterText(e.target.value)}
-            className="h-7 w-48 sm:w-64 rounded-md border border-white/10 bg-black/40 pl-8 pr-3 text-xs text-white placeholder-slate-500 font-mono focus:border-mint-500 focus:outline-none focus:ring-1 focus:ring-mint-500"
+            className="h-7 w-48 sm:w-64 rounded-md border border-white/10 bg-black/40 pl-8 pr-3 text-xs text-white placeholder-slate-500 font-mono focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
           />
         </div>
       </div>
@@ -108,7 +108,7 @@ export function ConfigDataGrid({
                     onClick={() => onSelectVersion(v.version)}
                     className={`cursor-pointer transition-colors ${
                       isSelected
-                        ? "bg-mint-950/40 hover:bg-mint-950/60"
+                        ? "bg-indigo-950/40 hover:bg-indigo-950/60"
                         : "hover:bg-white/5"
                     }`}
                   >
@@ -120,7 +120,7 @@ export function ConfigDataGrid({
                             isLatest
                               ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
                               : isSelected
-                              ? "bg-mint-500/20 text-mint-400 border border-mint-500/30"
+                              ? "bg-indigo-500/20 text-indigo-400 border border-indigo-500/30"
                               : "bg-white/10 text-slate-300"
                           }`}
                         >
@@ -148,7 +148,7 @@ export function ConfigDataGrid({
                               key={key}
                               className="inline-flex items-center gap-1 rounded bg-slate-800/80 px-2 py-0.5 text-[10px] text-slate-300 border border-white/5"
                             >
-                              <Tag className="h-2.5 w-2.5 text-mint-400" />
+                              <Tag className="h-2.5 w-2.5 text-indigo-400" />
                               <span>{key}:{val}</span>
                             </span>
                           ))
@@ -190,7 +190,7 @@ export function ConfigDataGrid({
                                 onDiffWithLatest(v.version);
                               }}
                               title="Compare diff with latest revision"
-                              className="rounded p-1 text-slate-400 hover:bg-white/10 hover:text-mint-400 transition-colors"
+                              className="rounded p-1 text-slate-400 hover:bg-white/10 hover:text-indigo-400 transition-colors"
                             >
                               <GitCompare className="h-3.5 w-3.5" />
                             </button>

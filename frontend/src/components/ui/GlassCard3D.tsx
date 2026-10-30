@@ -6,7 +6,7 @@ import { useMotionAccessibility } from "@/components/motion/MotionProvider";
 interface GlassCard3DProps {
   children: React.ReactNode;
   className?: string;
-  glowColor?: "mint" | "cyan" | "emerald" | "purple";
+  glowColor?: "mint" | "cyan" | "emerald" | "blue";
   /**
    * Tilt toward the cursor. Off by default: a card that moves under the pointer makes its
    * buttons, inputs and text hard to hit and read, so only decorative cards should opt in.
@@ -34,7 +34,7 @@ export function GlassCard3D({
     mint: "hover:border-mint-400/30 hover:shadow-[0_12px_40px_rgba(93,240,168,0.14)]",
     cyan: "hover:border-cyan-500/40 hover:shadow-[0_12px_40px_rgba(6,182,212,0.2)]",
     emerald: "hover:border-emerald-500/40 hover:shadow-[0_12px_40px_rgba(16,185,129,0.2)]",
-    purple: "hover:border-purple-500/40 hover:shadow-[0_12px_40px_rgba(168,85,247,0.2)]",
+    blue: "hover:border-blue-500/40 hover:shadow-[0_12px_40px_rgba(58,108,255,0.2)]",
   };
 
   const handleMouseMove = (e: MouseEvent<HTMLDivElement>) => {

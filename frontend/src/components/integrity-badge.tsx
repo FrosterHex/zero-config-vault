@@ -41,7 +41,7 @@ export function IntegrityBadge({ hash, verified = true }: IntegrityBadgeProps) {
       <div className="h-3 w-px bg-white/10" />
 
       <div className="flex items-center gap-1">
-        <code className="font-mono text-[11px] text-slate-300 group-hover:text-white transition-colors">
+        <code className="font-code text-[11px] text-slate-300 group-hover:text-white transition-colors">
           {truncatedHash}
         </code>
         {copied ? (

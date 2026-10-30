@@ -233,14 +233,14 @@ export function JsonTreeEditor({
       )}
 
       {/* Main Body */}
-      <div className="flex-1 overflow-auto p-4 font-mono text-xs">
+      <div className="flex-1 overflow-auto p-4 font-code text-xs">
         {viewMode === "raw" ? (
           <textarea
             value={rawText}
             readOnly={readOnly}
             onChange={(e) => handleRawChange(e.target.value)}
             spellCheck={false}
-            className="w-full h-full min-h-[420px] bg-transparent text-slate-200 resize-none font-mono text-xs focus:outline-none leading-relaxed selection:bg-mint-600/30"
+            className="w-full h-full min-h-[420px] bg-transparent text-slate-200 resize-none font-code text-xs focus:outline-none leading-relaxed selection:bg-mint-600/30"
           />
         ) : (
           <div className="space-y-1 select-text">
@@ -337,7 +337,7 @@ function TreeNode({
             nodeKey === "secure_settings"
               ? "text-amber-400 flex items-center gap-1"
               : isSecure
-              ? "text-purple-300"
+              ? "text-blue-300"
               : "text-slate-300"
           }`}
         >
@@ -364,7 +364,7 @@ function TreeNode({
             ) : typeof value === "number" ? (
               <span className="text-sky-400">{String(value)}</span>
             ) : typeof value === "boolean" ? (
-              <span className="text-purple-400">{String(value)}</span>
+              <span className="text-blue-400">{String(value)}</span>
             ) : value === null ? (
               <span className="text-slate-500 italic">null</span>
             ) : (

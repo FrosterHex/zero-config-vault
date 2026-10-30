@@ -4,7 +4,6 @@ import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 import { GammaCorrectionShader } from "three/examples/jsm/shaders/GammaCorrectionShader.js";
-import { CopyShader } from "three/examples/jsm/shaders/CopyShader.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
@@ -12,6 +11,10 @@ import {
   CONFIG, ENTRY_DUR, ENTRY_START_Y, LAYERS, STOPS_S, STOPS_X, STOPS_Y, clamp, hexToVec3, sample,
 } from "./config";
 import * as S from "./shaders";
+
+// 1.5 instead of the device ratio (often 2-3): the bloom and composite passes run per pixel, and the
+// first screen lagged at full retina resolution.
+const PIXEL_RATIO_CAP = 1.5;
 
 const ASSETS = {
   planet: "/planet/planet.glb",
@@ -33,7 +36,6 @@ export class PlanetScene {
   private scene = new THREE.Scene();
   private camera = new THREE.PerspectiveCamera(40, 1, 0.1, 200);
   private controls?: OrbitControls;
-  private torusComposer?: EffectComposer;
   private bloomComposer?: EffectComposer;
   private finalComposer?: EffectComposer;
   private finalPass?: ShaderPass;
@@ -109,7 +111,6 @@ export class PlanetScene {
       }
     });
     this.disposables.forEach((d) => d.dispose());
-    this.torusComposer?.dispose();
     this.bloomComposer?.dispose();
     this.finalComposer?.dispose();
     this.renderer?.dispose();
@@ -119,7 +120,7 @@ export class PlanetScene {
 
   private setup(): void {
     const renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, PIXEL_RATIO_CAP));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.VSMShadowMap;
@@ -135,40 +136,32 @@ export class PlanetScene {
     this.scene.add(camera);
 
     // three r155+ uses physically based light units; r0.143 multiplied intensities by PI internally,
-    // so the design's 1.8 / 0.8 are scaled by PI to keep the same brightness. Lights are enabled on
-    // every layer because three culls lights by camera layer and the planet renders on TORUS_SCENE.
+    // so the design's 1.8 / 0.8 are scaled by PI to keep the same brightness. As in the design, the
+    // lights and the planet live on ENTIRE_SCENE, which the final composer draws without a gamma pass:
+    // that is what gives the deep blue oceans and dark night side.
     const ambient = new THREE.AmbientLight(0xffffff, 1.8 * Math.PI);
     const sun = new THREE.DirectionalLight(0xffffff, 0.8 * Math.PI);
     sun.position.set(0, 10, 2);
     for (const light of [ambient, sun]) {
       light.layers.set(LAYERS.ENTIRE_SCENE);
-      light.layers.enable(LAYERS.TORUS_SCENE);
-      light.layers.enable(LAYERS.BLOOM_SCENE);
       this.scene.add(light);
     }
 
     const w = window.innerWidth;
     const h = window.innerHeight;
-    const dpr = Math.min(window.devicePixelRatio, 2);
+    const dpr = Math.min(window.devicePixelRatio, PIXEL_RATIO_CAP);
 
-    // 8-bit render targets, as in three r0.143. r0.186 defaults to half-float targets, which keep the
-    // planet shader's slightly negative ocean noise; the gamma pass turns those into NaN and the bloom
-    // blur spreads the NaN over the whole frame (a black screen). 8-bit targets clamp them to 0.
-    const makeComposer = () =>
-      new EffectComposer(
-        renderer,
-        new THREE.WebGLRenderTarget(w * dpr, h * dpr, { type: THREE.UnsignedByteType })
-      );
+    const makeComposer = (type: THREE.TextureDataType) =>
+      new EffectComposer(renderer, new THREE.WebGLRenderTarget(w * dpr, h * dpr, { type }));
 
-    const torusComposer = makeComposer();
-    torusComposer.renderToScreen = false;
-    torusComposer.addPass(new RenderPass(this.scene, camera));
-    torusComposer.addPass(new ShaderPass(GammaCorrectionShader));
-    torusComposer.addPass(new UnrealBloomPass(new THREE.Vector2(w, h), 0.22, 0.2, 0));
-    torusComposer.addPass(new ShaderPass(CopyShader));
-    this.torusComposer = torusComposer;
+    // The design's torus composer (render, gamma, bloom, copy) has nothing on its layer in this scene,
+    // so it is not built: it only cost a full-resolution bloom every frame. FinalPass samples an empty
+    // torusTexture (black), exactly what the empty layer produced.
 
-    const bloomComposer = makeComposer();
+    // Half-float: 8 bits per channel quantized the soft star and mote glows into dark rings. This layer
+    // holds only stars and motes, whose shaders never output negative values, so the gamma pass cannot
+    // produce NaN here (the planet's ocean noise, which can go negative, is not on this layer).
+    const bloomComposer = makeComposer(THREE.HalfFloatType);
     bloomComposer.renderToScreen = false;
     bloomComposer.addPass(new RenderPass(this.scene, camera));
     bloomComposer.addPass(new UnrealBloomPass(new THREE.Vector2(w, h), 0.5, 0.6, 0));
@@ -188,11 +181,12 @@ export class PlanetScene {
       },
       "tDiffuse"
     );
-    // ShaderPass clones its uniforms, so the bloom/torus textures are wired on the pass. They are set
-    // every frame in tick() from each composer's readBuffer (its finished output): a fixed
-    // renderTarget1 would alternate between finished and half-finished frames in the bloom composer,
-    // which swaps buffers an odd number of times per frame.
-    const finalComposer = makeComposer();
+    // ShaderPass clones its uniforms, so the bloom texture is wired on the pass, every frame in tick()
+    // from the bloom composer's readBuffer (its finished output): a fixed renderTarget1 would alternate
+    // between finished and half-finished frames, as that composer swaps an odd number of times.
+    // Half-float for the final composite: the planet and its dark atmosphere are stored here without a
+    // gamma pass, and 8 bits per channel banded the dark gradients into visible rings.
+    const finalComposer = makeComposer(THREE.HalfFloatType);
     finalComposer.addPass(new RenderPass(this.scene, camera));
     finalComposer.addPass(finalPass);
     this.finalComposer = finalComposer;
@@ -243,7 +237,7 @@ export class PlanetScene {
     });
     const glow = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material);
     glow.scale.setScalar(CONFIG.planetRadius * 2.3);
-    glow.layers.set(LAYERS.TORUS_SCENE);
+    glow.layers.set(LAYERS.ENTIRE_SCENE);
     this.worldGroup.add(glow);
     this.glowMesh = glow;
   }
@@ -270,7 +264,7 @@ export class PlanetScene {
       const mesh = new THREE.Mesh(new THREE.SphereGeometry(CONFIG.planetRadius * layer.h, 64, 64), material);
       mesh.rotation.y = layer.ry;
       mesh.renderOrder = 2;
-      mesh.layers.set(LAYERS.TORUS_SCENE);
+      mesh.layers.set(LAYERS.ENTIRE_SCENE);
       this.cloudGroup.add(mesh);
       this.clouds.push({ mesh, spin: layer.s });
     }
@@ -403,14 +397,30 @@ export class PlanetScene {
       shader.fragmentShader = S.PLANET_FRAGMENT_UNIFORMS + S.SNOISE + shader.fragmentShader.replace("#include <dithering_fragment>", S.PLANET_FRAGMENT_TAIL);
     };
     mesh.material = material;
-    mesh.layers.set(LAYERS.TORUS_SCENE);
+    mesh.layers.set(LAYERS.ENTIRE_SCENE);
     this.planetGroup.add(mesh);
 
     this.addMarkers(mesh, material.map);
 
+    // Compile the planet, cloud and marker shaders off the frame loop before showing them: compiling
+    // on first draw stalled the hero for a noticeable moment just as the planet appeared.
+    const show = () => {
+      if (this.disposed) return;
+      this.planetGroup.visible = true;
+      this.cloudGroup.visible = true;
+      this.planetReady = true;
+      this.entryStart = performance.now() / 1000;
+    };
+    const renderer = this.renderer;
+    if (!renderer) return show();
+    // compileAsync gathers the visible objects synchronously when called, so the planet and clouds are
+    // visible for that call and hidden right after, until their programs are ready.
+    this.camera.layers.set(LAYERS.ENTIRE_SCENE);
     this.cloudGroup.visible = true;
-    this.planetReady = true;
-    this.entryStart = performance.now() / 1000;
+    const compiled = renderer.compileAsync(this.scene, this.camera);
+    this.planetGroup.visible = false;
+    this.cloudGroup.visible = false;
+    compiled.catch(() => undefined).then(show);
   }
 
   /** Golden radar pings on land: area-weighted surface samples whose texel is not ocean blue. */
@@ -486,7 +496,7 @@ export class PlanetScene {
       transparent: true, depthTest: true, depthWrite: false, blending: THREE.AdditiveBlending,
     });
     const markers = new THREE.Points(markerGeometry, material);
-    markers.layers.set(LAYERS.TORUS_SCENE);
+    markers.layers.set(LAYERS.ENTIRE_SCENE);
     mesh.add(markers);
   }
 
@@ -495,12 +505,12 @@ export class PlanetScene {
     if (!renderer) return;
     const w = window.innerWidth;
     const h = window.innerHeight;
-    const dpr = Math.min(window.devicePixelRatio, 2);
+    const dpr = Math.min(window.devicePixelRatio, PIXEL_RATIO_CAP);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
     renderer.setPixelRatio(dpr);
     renderer.setSize(w, h, false);
-    for (const composer of [this.torusComposer, this.bloomComposer, this.finalComposer]) {
+    for (const composer of [this.bloomComposer, this.finalComposer]) {
       composer?.setPixelRatio(dpr);
       composer?.setSize(w, h);
     }
@@ -546,12 +556,9 @@ export class PlanetScene {
     this.controls?.update();
 
     const camera = this.camera;
-    camera.layers.set(LAYERS.TORUS_SCENE);
-    this.torusComposer?.render();
     camera.layers.set(LAYERS.BLOOM_SCENE);
     this.bloomComposer?.render();
-    if (this.finalPass && this.torusComposer && this.bloomComposer) {
-      this.finalPass.uniforms.torusTexture.value = this.torusComposer.readBuffer.texture;
+    if (this.finalPass && this.bloomComposer) {
       this.finalPass.uniforms.bloomTexture.value = this.bloomComposer.readBuffer.texture;
     }
     camera.layers.set(LAYERS.ENTIRE_SCENE);

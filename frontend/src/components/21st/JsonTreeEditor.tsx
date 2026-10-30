@@ -124,7 +124,7 @@ export function JsonTreeEditor({
               onClick={() => setViewMode("tree")}
               className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 transition-all ${
                 viewMode === "tree"
-                  ? "bg-mint-600 text-white font-medium shadow"
+                  ? "bg-indigo-600 text-white font-medium shadow"
                   : "text-slate-400 hover:text-white"
               }`}
             >
@@ -136,7 +136,7 @@ export function JsonTreeEditor({
               onClick={() => setViewMode("raw")}
               className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 transition-all ${
                 viewMode === "raw"
-                  ? "bg-mint-600 text-white font-medium shadow"
+                  ? "bg-indigo-600 text-white font-medium shadow"
                   : "text-slate-400 hover:text-white"
               }`}
             >
@@ -176,7 +176,7 @@ export function JsonTreeEditor({
                 placeholder="Filter keys or values..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-7 w-48 sm:w-60 rounded-md border border-white/10 bg-black/40 pl-8 pr-3 text-xs text-white placeholder-slate-500 font-mono focus:border-mint-500 focus:outline-none focus:ring-1 focus:ring-mint-500"
+                className="h-7 w-48 sm:w-60 rounded-md border border-white/10 bg-black/40 pl-8 pr-3 text-xs text-white placeholder-slate-500 font-mono focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
               />
             </div>
           ) : (
@@ -186,7 +186,7 @@ export function JsonTreeEditor({
                 onClick={handleFormat}
                 className="inline-flex items-center gap-1.5 rounded-md border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-mono text-slate-300 hover:bg-white/10 hover:text-white transition-colors"
               >
-                <Sparkles className="h-3.5 w-3.5 text-mint-400" />
+                <Sparkles className="h-3.5 w-3.5 text-indigo-400" />
                 <span>Prettify</span>
               </button>
               <button
@@ -216,7 +216,7 @@ export function JsonTreeEditor({
                   // error handled
                 }
               }}
-              className="rounded-md bg-mint-600 px-3 py-1 text-xs font-semibold text-white hover:bg-mint-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-mint-600 shadow-md shadow-mint-600/20"
+              className="rounded-md bg-indigo-600 px-3 py-1 text-xs font-semibold text-white hover:bg-indigo-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-indigo-600 shadow-md shadow-indigo-600/20"
             >
               Commit New Revision
             </button>
@@ -233,14 +233,14 @@ export function JsonTreeEditor({
       )}
 
       {/* Main Body */}
-      <div className="flex-1 overflow-auto p-4 font-code text-xs">
+      <div className="flex-1 overflow-auto p-4 font-mono text-xs">
         {viewMode === "raw" ? (
           <textarea
             value={rawText}
             readOnly={readOnly}
             onChange={(e) => handleRawChange(e.target.value)}
             spellCheck={false}
-            className="w-full h-full min-h-[420px] bg-transparent text-slate-200 resize-none font-code text-xs focus:outline-none leading-relaxed selection:bg-mint-600/30"
+            className="w-full h-full min-h-[420px] bg-transparent text-slate-200 resize-none font-mono text-xs focus:outline-none leading-relaxed selection:bg-indigo-600/30"
           />
         ) : (
           <div className="space-y-1 select-text">
@@ -322,7 +322,7 @@ function TreeNode({
             }}
           >
             {isExpanded ? (
-              <ChevronDown className="h-3.5 w-3.5 text-mint-400" />
+              <ChevronDown className="h-3.5 w-3.5 text-indigo-400" />
             ) : (
               <ChevronRight className="h-3.5 w-3.5 text-slate-500" />
             )}
@@ -337,7 +337,7 @@ function TreeNode({
             nodeKey === "secure_settings"
               ? "text-amber-400 flex items-center gap-1"
               : isSecure
-              ? "text-blue-300"
+              ? "text-purple-300"
               : "text-slate-300"
           }`}
         >
@@ -364,7 +364,7 @@ function TreeNode({
             ) : typeof value === "number" ? (
               <span className="text-sky-400">{String(value)}</span>
             ) : typeof value === "boolean" ? (
-              <span className="text-blue-400">{String(value)}</span>
+              <span className="text-purple-400">{String(value)}</span>
             ) : value === null ? (
               <span className="text-slate-500 italic">null</span>
             ) : (

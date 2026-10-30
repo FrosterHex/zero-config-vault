@@ -92,22 +92,22 @@ export default function AccessPage() {
   return (
     <DashboardShell>
       <div className="pointer-events-none fixed inset-0 overflow-hidden -z-10 bg-grid-cyber">
-        <div className="absolute top-1/4 right-1/3 h-80 w-80 rounded-full bg-mint-600/10 blur-[130px]" />
+        <div className="absolute top-1/4 right-1/3 h-80 w-80 rounded-full bg-indigo-600/10 blur-[130px]" />
       </div>
 
       <AccessibleFade delay={0}>
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-4 border-b border-white/10">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <span className="flex h-2 w-2 rounded-full bg-mint-400" />
-              <span className="text-[11px] font-mono uppercase tracking-widest text-mint-400 font-semibold">
+              <span className="flex h-2 w-2 rounded-full bg-indigo-400" />
+              <span className="text-[11px] font-mono uppercase tracking-widest text-indigo-400 font-semibold">
                 Granular Role-Based Access Control (RBAC)
               </span>
             </div>
-            <h1 className="font-display text-4xl font-bold tracking-tight text-white">
+            <h1 className="font-['Cormorant_Garamond',serif] text-4xl font-bold tracking-tight text-white">
               Scoped API Key Matrix
             </h1>
-            <p className="text-xs sm:text-sm text-slate-400 font-sans font-light mt-1 max-w-2xl">
+            <p className="text-xs sm:text-sm text-slate-400 font-['Montserrat',sans-serif] font-light mt-1 max-w-2xl">
               Cryptographically hashed API credentials stored in MongoDB. Restrict tokens by specific microservice
               application boundaries, environments, and administrative roles.
             </p>
@@ -122,7 +122,7 @@ export default function AccessPage() {
                 aria-label="Reload API keys"
                 className="rounded-lg border border-white/10 bg-white/5 p-2 text-slate-400 hover:text-white transition-colors"
               >
-                <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin text-mint-400" : ""}`} />
+                <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin text-indigo-400" : ""}`} />
               </button>
             </div>
           )}
@@ -152,17 +152,17 @@ export default function AccessPage() {
           <AccessibleFade delay={0.08}>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {keys.map((k) => (
-                <GlassCard3D key={k.id} glowColor="mint">
+                <GlassCard3D key={k.id} glowColor="indigo">
                   <div className="p-6 space-y-4">
                     <div className="flex items-center justify-between">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-mint-500/10 text-mint-400 border border-mint-500/20">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
                         <KeyRound className="h-5 w-5" />
                       </div>
                       <div className="flex items-center gap-1.5">
                         {k.roles.map((r) => (
                           <span
                             key={r}
-                            className="rounded px-2 py-0.5 text-[10px] font-mono font-bold uppercase bg-mint-500/20 text-mint-400 border border-mint-500/30"
+                            className="rounded px-2 py-0.5 text-[10px] font-mono font-bold uppercase bg-indigo-500/20 text-indigo-400 border border-indigo-500/30"
                           >
                             {r}
                           </span>

@@ -1,8 +1,22 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { Cormorant_Garamond, Montserrat, Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
-import { AppProviders } from "@/components/providers/AppProviders";
 
+const cormorantGaramond = Cormorant_Garamond({
+  variable: "--font-cormorant",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
+});
+
+const montserrat = Montserrat({
+  variable: "--font-montserrat",
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
+  display: "swap",
+});
+
+// Inter is used only by the landing page (the cover); the dashboard keeps Cormorant Garamond and Montserrat.
 const inter = Inter({
   variable: "--font-inter",
   subsets: ["latin"],
@@ -23,17 +37,21 @@ export const metadata: Metadata = {
     "Versioned configuration and secret store built on MongoDB, with envelope encryption, change streams and audit logging.",
 };
 
+import { AppProviders } from "@/components/providers/AppProviders";
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    // The font variables live on <html>: Tailwind's @theme reads them on :root (font-mono, font-sans),
-    // where variables defined only on <body> would be undefined and fall back to the body font.
-    <html lang="en" className={`dark ${inter.variable} ${jetbrainsMono.variable}`}>
-      <body className="antialiased bg-[#04060f] text-[#f3f6ff]">
-        <AppProviders>{children}</AppProviders>
+    <html lang="en" className="dark">
+      <body
+        className={`${cormorantGaramond.variable} ${montserrat.variable} ${inter.variable} ${jetbrainsMono.variable} antialiased bg-[#090D16] text-[#F8FAFC]`}
+      >
+        <AppProviders>
+          {children}
+        </AppProviders>
       </body>
     </html>
   );

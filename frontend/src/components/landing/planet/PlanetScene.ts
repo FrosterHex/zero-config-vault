@@ -11,17 +11,11 @@ import {
   CONFIG, ENTRY_DUR, ENTRY_START_Y, LAYERS, STOPS_S, STOPS_X, STOPS_Y, clamp, hexToVec3, sample,
 } from "./config";
 import * as S from "./shaders";
+import { PLANET_ASSETS as ASSETS } from "./assets";
 
 // 1.5 instead of the device ratio (often 2-3): the bloom and composite passes run per pixel, and the
 // first screen lagged at full retina resolution.
 const PIXEL_RATIO_CAP = 1.5;
-
-const ASSETS = {
-  planet: "/planet/planet.glb",
-  lights: "/planet/planet-lights.glb",
-  clouds: "/planet/planet-clouds.png",
-  draco: "/draco/",
-};
 
 type Uniform<T> = { value: T };
 
@@ -45,6 +39,7 @@ export class PlanetScene {
   private cloudGroup = new THREE.Group();
   private glowMesh?: THREE.Mesh;
   private clouds: { mesh: THREE.Mesh; spin: number }[] = [];
+  private cloudTexture: THREE.Texture | null = null;
   private resUniforms: Uniform<THREE.Vector2>[] = [];
   private disposables: { dispose: () => void }[] = [];
 
@@ -244,6 +239,7 @@ export class PlanetScene {
 
   private addClouds(): void {
     const tex = new THREE.TextureLoader().load(ASSETS.clouds);
+    this.cloudTexture = tex;
     tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
     tex.repeat.set(5, 5);
     const layers = [
@@ -340,6 +336,8 @@ export class PlanetScene {
   private loadPlanet(): void {
     const draco = new DRACOLoader();
     draco.setDecoderPath(ASSETS.draco);
+    // Fetch and compile the decoder now, alongside the model downloads, instead of after the first one
+    draco.preload();
     this.disposables.push(draco);
     const loader = new GLTFLoader();
     loader.setDRACOLoader(draco);
@@ -350,16 +348,15 @@ export class PlanetScene {
       console.warn("Planet model could not be loaded; the page continues without it.", err);
     };
 
-    loader.load(ASSETS.lights, (lightsGltf) => {
-      // Left the page meanwhile: skip downloading and decoding the much larger planet model.
-      if (this.disposed) return;
-      let nightTex: THREE.Texture | null = null;
-      lightsGltf.scene.traverse((o) => {
-        const m = o as THREE.Mesh;
-        if (!nightTex && m.isMesh) nightTex = (m.material as THREE.MeshStandardMaterial).map;
-      });
-      loader.load(ASSETS.planet, (gltf) => {
+    // Both models download in parallel: chaining them (lights first) delayed the planet by seconds
+    Promise.all([loader.loadAsync(ASSETS.lights), loader.loadAsync(ASSETS.planet)])
+      .then(([lightsGltf, gltf]) => {
         if (this.disposed) return;
+        let nightTex: THREE.Texture | null = null;
+        lightsGltf.scene.traverse((o) => {
+          const m = o as THREE.Mesh;
+          if (!nightTex && m.isMesh) nightTex = (m.material as THREE.MeshStandardMaterial).map;
+        });
         let planet: THREE.Mesh | null = null;
         gltf.scene.traverse((o) => {
           const m = o as THREE.Mesh;
@@ -367,8 +364,8 @@ export class PlanetScene {
         });
         if (!planet) return fail(new Error("planet.glb has no mesh"));
         this.buildPlanet(planet, nightTex);
-      }, undefined, fail);
-    }, undefined, fail);
+      })
+      .catch(fail);
   }
 
   private buildPlanet(mesh: THREE.Mesh, nightTex: THREE.Texture | null): void {
@@ -415,6 +412,11 @@ export class PlanetScene {
     if (!renderer) return show();
     // compileAsync gathers the visible objects synchronously when called, so the planet and clouds are
     // visible for that call and hidden right after, until their programs are ready.
+    // Upload the large planet textures to the GPU now, while the planet is still hidden: uploading them on
+    // its first visible frame made the entry animation stutter.
+    for (const value of Object.values(material)) if (value instanceof THREE.Texture) renderer.initTexture(value);
+    if (nightTex) renderer.initTexture(nightTex);
+    if (this.cloudTexture) renderer.initTexture(this.cloudTexture);
     this.camera.layers.set(LAYERS.ENTIRE_SCENE);
     this.cloudGroup.visible = true;
     const compiled = renderer.compileAsync(this.scene, this.camera);

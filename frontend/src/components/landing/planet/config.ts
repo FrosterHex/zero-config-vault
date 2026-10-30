@@ -25,7 +25,7 @@ export const STOPS_Y: Stop[] = [{ p: 0, v: -4.5 }, { p: 0.32, v: 0.55 }, { p: 0.
 export const STOPS_S: Stop[] = [{ p: 0, v: 2.15 }, { p: 0.32, v: 1.0 }, { p: 0.64, v: 0.92 }, { p: 1, v: 1.12 }];
 
 /** One-time float-up entrance once the planet has loaded. */
-export const ENTRY_DUR = 1.9;
+export const ENTRY_DUR = 1.2;
 export const ENTRY_START_Y = -6.5;
 
 export const lerp = (a: number, b: number, t: number) => a + (b - a) * t;

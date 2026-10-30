@@ -40,10 +40,14 @@ export function isGuestBlocked(segments: string[]): boolean {
   return segments[0] === "keys" || (segments[0] === "stream" && segments.length === 1);
 }
 
-export function isSameOrigin(origin: string | null, requestUrl: string): boolean {
+export function isSameOrigin(origin: string | null, requestUrl: string, host?: string | null): boolean {
   if (!origin) return false;
   try {
-    return new URL(origin).origin === new URL(requestUrl).origin;
+    const from = new URL(origin);
+    const to = new URL(requestUrl);
+    // In the Docker image the server sees its bind address (0.0.0.0) in the request URL, so the
+    // Host header the browser sent is what identifies this site.
+    return from.protocol === to.protocol && from.host === (host || to.host);
   } catch {
     return false;
   }

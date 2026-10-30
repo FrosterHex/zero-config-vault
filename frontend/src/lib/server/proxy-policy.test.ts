@@ -70,6 +70,12 @@ describe("isSameOrigin", () => {
     expect(isSameOrigin(null, url)).toBe(false);
     expect(isSameOrigin("https://evil.app", url)).toBe(false);
   });
+
+  it("uses the Host header when the server sees its bind address", () => {
+    const url = "http://0.0.0.0:3000/api/vault/config";
+    expect(isSameOrigin("http://localhost:3000", url, "localhost:3000")).toBe(true);
+    expect(isSameOrigin("http://evil.app", url, "localhost:3000")).toBe(false);
+  });
 });
 
 it("caps guest bodies at 256 KiB", () => {

@@ -34,7 +34,7 @@ async function proxy(req: Request, { params }: Ctx): Promise<Response> {
   const method = req.method.toUpperCase();
   const isRead = method === "GET" || method === "HEAD";
   if (!isRead) {
-    if (!isSameOrigin(req.headers.get("origin"), req.url)) {
+    if (!isSameOrigin(req.headers.get("origin"), req.url, req.headers.get("host"))) {
       return json(403, "Cross-origin request refused");
     }
     if (role === "guest") {

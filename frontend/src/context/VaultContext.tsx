@@ -22,6 +22,8 @@ interface VaultContextType {
   /** Whether the last statistics request reached the vault; drives the connection indicators. */
   vaultStatus: VaultStatus;
   role: Role;
+  /** False until the first session check finishes; until then `role` is only the "guest" default. */
+  roleChecked: boolean;
   refreshRole: () => Promise<void>;
   isWaking: boolean;
   canWrite: (app: string) => boolean;
@@ -42,6 +44,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const [loadingStats, setLoadingStats] = useState<boolean>(false);
   const [vaultStatus, setVaultStatus] = useState<VaultStatus>("connecting");
   const [role, setRole] = useState<Role>("guest");
+  const [roleChecked, setRoleChecked] = useState<boolean>(false);
   const [isWaking, setIsWaking] = useState<boolean>(false);
 
   const refreshRole = useCallback(async () => {
@@ -49,6 +52,8 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       setRole(await authApi.session());
     } catch {
       setRole("guest");
+    } finally {
+      setRoleChecked(true);
     }
   }, []);
 
@@ -140,6 +145,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         loadingStats,
         vaultStatus,
         role,
+        roleChecked,
         refreshRole,
         isWaking,
         canWrite,

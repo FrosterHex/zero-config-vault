@@ -16,6 +16,7 @@ import {
   Check,
   RefreshCw,
   AlertCircle,
+  Loader2,
 } from "lucide-react";
 
 interface KeyItem {
@@ -34,7 +35,7 @@ export default function AccessPage() {
   const [loading, setLoading] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  const { role } = useVault();
+  const { role, roleChecked } = useVault();
   const isAdmin = role === "admin";
   const [error, setError] = useState<string | null>(null);
 
@@ -129,7 +130,14 @@ export default function AccessPage() {
         </div>
       </AccessibleFade>
 
-      {!isAdmin ? (
+      {!roleChecked ? (
+        // Until the session check returns, the role is only the guest default: showing the admin-only
+        // panel here made signed-in admins see "admin-only" for a moment after every page load.
+        <p role="status" className="flex items-center gap-2 text-xs text-slate-400">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+          Checking your session…
+        </p>
+      ) : !isAdmin ? (
         <AccessibleFade delay={0.05}>
           <AdminOnlyPanel
             title="Key management is admin-only"

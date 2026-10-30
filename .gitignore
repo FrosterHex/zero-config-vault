@@ -42,3 +42,7 @@ progress.txt
 Antigravity_Vault_Build_Spec.md
 verify-vault.ps1
 verify-vault.sh
+
+# Local tool state
+.claude/
+.playwright-mcp/

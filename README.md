@@ -147,12 +147,14 @@ Sharding is designed but not deployed (Atlas M0 does not support it). See [SHARD
 
 ## Dashboard
 
-The dashboard (`frontend/`) has these pages: `/dashboard` (statistics and telemetry), `/configs` (payload tree editor, version timeline, rollback, integrity badge), `/diff` (split and unified diff), `/binaries` (GridFS files), `/export`, `/audit` (recent audit entries, refreshed on each live event), `/access` (API key management) and `/nosql` (the MongoDB features above).
+The frontend (`frontend/`) opens on a landing page at `/` that introduces the project over a WebGL planet scene. The dashboard has these pages: `/dashboard` (statistics and telemetry), `/configs` (payload tree editor, version timeline, rollback, integrity badge), `/diff` (split and unified diff), `/binaries` (GridFS files), `/export`, `/audit` (recent audit entries, refreshed on each live event), `/access` (API key management) and `/nosql` (the MongoDB features above).
 
 - **Guest (default).** Reads every application. Writes and rollbacks are allowed only in the `playground` application, so visitors can try the editor without changing the demo data. Secrets stay masked.
 - **Admin (after login).** Full access, including revealed secrets and key management.
 
-The design uses Cormorant Garamond, Montserrat and JetBrains Mono, Tailwind CSS 4, Framer Motion (animations respect `prefers-reduced-motion`) and a Three.js hologram on the landing page.
+The dashboard uses Cormorant Garamond, Montserrat and JetBrains Mono, Tailwind CSS 4, Framer Motion (animations respect `prefers-reduced-motion`) and a Three.js hologram on `/dashboard`.
+
+The landing page has its own styles, scoped under `.landing` so they never reach the dashboard. It uses Inter, Lenis smooth scrolling and a Three.js planet with bloom post-processing, loaded from Draco-compressed glTF models in `frontend/public/planet/`. The page preloads those files, and they are cached for a week. With reduced motion, smooth scrolling and the planet's entry animation are switched off.
 
 ## Spring Boot client starter
 

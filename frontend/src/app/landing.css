@@ -151,6 +151,14 @@ html.lenis, html.lenis body { height: auto; }
   .landing .brand { font-size: 16px; letter-spacing: .08em; }
   .landing .nav { padding: 18px 20px; }
   .landing .section { padding: clamp(64px,16vw,110px) 20px; }
+  /* On phones the planet fills the width behind the section copy: a soft dark scrim and a tighter
+     shadow keep the paragraph readable over its bright land and clouds */
+  .landing .section-head, .landing .showcase-copy { position: relative; isolation: isolate; }
+  .landing .section-head::before, .landing .showcase-copy::before {
+    content: ""; position: absolute; inset: -24px -20px; z-index: -1; pointer-events: none;
+    background: radial-gradient(closest-side, rgba(4,6,15,.72), rgba(4,6,15,.45) 60%, transparent);
+  }
+  .landing .section-head p, .landing .showcase-copy p { color: #c3cce6; text-shadow: 0 1px 2px rgba(0,0,0,.9), 0 0 18px rgba(4,6,15,.85); }
 }
 @media (max-width: 560px) {
   .landing .feature-grid { grid-template-columns: 1fr; }

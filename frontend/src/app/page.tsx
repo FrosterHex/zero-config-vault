@@ -3,10 +3,12 @@
 import React, { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { preload } from "react-dom";
 import "./landing.css";
 import { useVault } from "@/context/VaultContext";
 import { LoginDialog } from "@/components/auth/LoginDialog";
 import { PlanetCanvas } from "@/components/landing/PlanetCanvas";
+import { DRACO_FILES, PLANET_ASSETS } from "@/components/landing/planet/assets";
 import { ArrowIcon, FeatureIcon } from "@/components/landing/Icons";
 import { useLenis, useReveal } from "@/components/landing/useLandingMotion";
 import { BUILT_ON, FEATURES, FOOTER_COLUMNS, NAV_LINKS, toBars, toEnvRows } from "@/components/landing/landing-content";
@@ -23,6 +25,12 @@ function Brand() {
 }
 
 export default function LandingPage() {
+  // Start the planet downloads from the HTML itself instead of after the scene code has loaded and run.
+  // "fetch" with an anonymous CORS mode matches how three.js requests them, so the browser reuses these.
+  for (const href of [PLANET_ASSETS.planet, PLANET_ASSETS.lights, ...DRACO_FILES.map((f) => PLANET_ASSETS.draco + f)]) {
+    preload(href, { as: "fetch", crossOrigin: "anonymous" });
+  }
+  preload(PLANET_ASSETS.clouds, { as: "image", crossOrigin: "anonymous", type: "image/webp" });
   const router = useRouter();
   const { stats, role, vaultStatus } = useVault();
   const rootRef = useRef<HTMLDivElement>(null);

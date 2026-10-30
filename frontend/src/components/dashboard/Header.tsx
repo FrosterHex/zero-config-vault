@@ -44,7 +44,7 @@ export function Header() {
 
   const envs: { key: Environment; label: string; activeClass: string }[] = [
     { key: "production", label: "production", activeClass: "bg-mint-600 text-white shadow-mint-600/40 shadow-sm" },
-    { key: "staging", label: "staging", activeClass: "bg-purple-600 text-white shadow-purple-600/40 shadow-sm" },
+    { key: "staging", label: "staging", activeClass: "bg-blue-600 text-white shadow-blue-600/40 shadow-sm" },
     { key: "development", label: "dev", activeClass: "bg-emerald-600 text-white shadow-emerald-600/40 shadow-sm" },
   ];
 

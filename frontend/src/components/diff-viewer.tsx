@@ -136,7 +136,7 @@ export function DiffViewer({ diff, v1, v2, appName, env }: DiffViewerProps) {
       </div>
 
       {/* Main Diff Content */}
-      <div className="flex-1 overflow-auto p-4 font-mono text-xs">
+      <div className="flex-1 overflow-auto p-4 font-code text-xs">
         {totalChanges === 0 ? (
           <div className="flex flex-col items-center justify-center h-48 text-center">
             <CheckCircle className="h-8 w-8 text-emerald-400 mb-2" />

@@ -118,7 +118,7 @@ export default function NoSqlDeepDivePage() {
                     <Database className="h-3 w-3" />
                     MongoDB 7.0 Engine Deep Dive
                   </span>
-                  <span className="rounded-full border border-purple-500/30 bg-purple-500/10 px-3 py-0.5 text-[10px] font-mono text-purple-400">
+                  <span className="rounded-full border border-blue-500/30 bg-blue-500/10 px-3 py-0.5 text-[10px] font-mono text-blue-400">
                     NoSQL Course Showcase
                   </span>
                 </div>
@@ -169,7 +169,7 @@ export default function NoSqlDeepDivePage() {
                 onClick={() => setActiveTab("sharding")}
                 className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all ${
                   activeTab === "sharding"
-                    ? "bg-purple-600 text-white shadow-lg shadow-purple-600/30 font-semibold"
+                    ? "bg-blue-600 text-white shadow-lg shadow-blue-600/30 font-semibold"
                     : "text-slate-400 hover:text-white hover:bg-white/5"
                 }`}
               >
@@ -236,16 +236,16 @@ export default function NoSqlDeepDivePage() {
                   </div>
                 </GlassCard3D>
 
-                <GlassCard3D glowColor="purple">
+                <GlassCard3D glowColor="blue">
                   <div className="p-5 space-y-2">
                     <div className="flex items-center justify-between text-slate-400 text-xs font-mono">
                       <span>Time-Series Granularity</span>
-                      <Cpu className="h-4 w-4 text-purple-400" />
+                      <Cpu className="h-4 w-4 text-blue-400" />
                     </div>
                     <div className="text-xl font-bold text-white font-mono">
                       SECONDS
                     </div>
-                    <div className="text-[10px] font-mono text-purple-400/80">
+                    <div className="text-[10px] font-mono text-blue-400/80">
                       metaField: metadata (Compound)
                     </div>
                   </div>
@@ -467,7 +467,7 @@ export default function NoSqlDeepDivePage() {
               <div className="rounded-2xl border border-white/10 bg-[#0B0F19]/80 backdrop-blur-xl p-6 shadow-xl">
                 <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 mb-6">
                   <div>
-                    <span className="text-[10px] font-mono text-purple-400 uppercase tracking-wider font-bold">
+                    <span className="text-[10px] font-mono text-blue-400 uppercase tracking-wider font-bold">
                       Horizontal Partitioning Strategy
                     </span>
                     <h3 className="font-sans text-xl font-bold text-white mt-1">
@@ -477,7 +477,7 @@ export default function NoSqlDeepDivePage() {
 
                   <div className="flex items-center gap-2 font-mono text-xs">
                     <span className="text-slate-400">Shard Key:</span>
-                    <code className="bg-purple-950/60 border border-purple-500/30 text-purple-300 px-2.5 py-1 rounded-lg">
+                    <code className="bg-blue-950/60 border border-blue-500/30 text-blue-300 px-2.5 py-1 rounded-lg">
                       &#123; &quot;environment&quot;: 1, &quot;applicationName&quot;: &quot;hashed&quot; &#125;
                     </code>
                   </div>
@@ -496,7 +496,7 @@ export default function NoSqlDeepDivePage() {
                   </div>
 
                   <div className="rounded-xl border border-white/10 bg-black/40 p-4 space-y-2">
-                    <div className="flex items-center gap-2 text-purple-400 text-xs font-mono font-bold">
+                    <div className="flex items-center gap-2 text-blue-400 text-xs font-mono font-bold">
                       <Server className="h-4 w-4" />
                       Config Server RS (CSRS)
                     </div>
@@ -518,10 +518,10 @@ export default function NoSqlDeepDivePage() {
               </div>
 
               {/* Interactive Shard Key Routing Simulator */}
-              <div className="rounded-2xl border border-purple-500/30 bg-[#0B0F19]/90 backdrop-blur-xl p-6 shadow-2xl space-y-6">
+              <div className="rounded-2xl border border-blue-500/30 bg-[#0B0F19]/90 backdrop-blur-xl p-6 shadow-2xl space-y-6">
                 <div>
                   <h3 className="font-sans text-lg font-bold text-white flex items-center gap-2">
-                    <Terminal className="h-5 w-5 text-purple-400" />
+                    <Terminal className="h-5 w-5 text-blue-400" />
                     Interactive Query Routing Simulator
                   </h3>
                   <p className="text-xs text-slate-400 font-light mt-0.5">
@@ -538,7 +538,7 @@ export default function NoSqlDeepDivePage() {
                     <select
                       value={simApp}
                       onChange={(e) => setSimApp(e.target.value)}
-                      className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-purple-500/50"
+                      className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-blue-500/50"
                     >
                       <option value="payment-gateway" className="bg-[#0B0F19]">payment-gateway</option>
                       <option value="auth-service" className="bg-[#0B0F19]">auth-service</option>
@@ -555,7 +555,7 @@ export default function NoSqlDeepDivePage() {
                     <select
                       value={simEnv}
                       onChange={(e) => setSimEnv(e.target.value)}
-                      className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-purple-500/50"
+                      className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-blue-500/50"
                     >
                       <option value="production" className="bg-[#0B0F19]">production</option>
                       <option value="staging" className="bg-[#0B0F19]">staging</option>
@@ -584,7 +584,7 @@ export default function NoSqlDeepDivePage() {
                     </div>
                     <div className="p-3 rounded-lg bg-black/40 border border-white/5 space-y-1">
                       <span className="text-slate-400 text-[10px]">Target Shard</span>
-                      <div className="text-purple-400 font-bold">{simResult.targetShard}</div>
+                      <div className="text-blue-400 font-bold">{simResult.targetShard}</div>
                     </div>
                     <div className="p-3 rounded-lg bg-black/40 border border-white/5 space-y-1">
                       <span className="text-slate-400 text-[10px]">Zone Key Range</span>
@@ -601,7 +601,7 @@ export default function NoSqlDeepDivePage() {
                   <div className="text-[11px] font-mono text-slate-300 leading-relaxed bg-black/30 p-3 rounded-lg border border-white/5">
                     <strong className="text-white">Explanation:</strong> The query filters on both shard-key fields,{" "}
                     <code className="text-cyan-300">environment</code> and{" "}
-                    <code className="text-purple-300">applicationName (hashed)</code>, so the{" "}
+                    <code className="text-blue-300">applicationName (hashed)</code>, so the{" "}
                     <code className="text-emerald-300">mongos</code> router sends it to the one shard that owns the
                     matching chunk; the other shards do no work. The environment prefix also lets each environment be
                     pinned to its own zone. This is a design (see SHARDING.md); the live demo runs on a single replica set.

@@ -19,7 +19,7 @@ export function RevisionTimeline({
   onSelectV2,
 }: RevisionTimelineProps) {
   return (
-    <div className="relative pl-6 space-y-6 before:absolute before:left-2.5 before:top-3 before:bottom-3 before:w-0.5 before:bg-gradient-to-b before:from-mint-500 before:via-purple-500 before:to-slate-800">
+    <div className="relative pl-6 space-y-6 before:absolute before:left-2.5 before:top-3 before:bottom-3 before:w-0.5 before:bg-gradient-to-b before:from-mint-500 before:via-blue-500 before:to-slate-800">
       {versions.map((ver, idx) => {
         const isV1 = ver.version === selectedV1;
         const isV2 = ver.version === selectedV2;
@@ -44,7 +44,7 @@ export function RevisionTimeline({
             <div
               className={`rounded-xl border p-3.5 transition-all backdrop-blur-sm ${
                 isV1 && isV2
-                  ? "border-purple-500/50 bg-purple-950/20 shadow-lg shadow-purple-500/10"
+                  ? "border-blue-500/50 bg-blue-950/20 shadow-lg shadow-blue-500/10"
                   : isV1
                   ? "border-mint-500/50 bg-mint-950/20 shadow-lg shadow-mint-500/10"
                   : isV2

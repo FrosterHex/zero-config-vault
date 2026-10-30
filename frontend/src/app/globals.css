@@ -3,7 +3,10 @@
 @theme {
   --font-display: var(--font-inter), -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   --font-sans: var(--font-inter), -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-  --font-mono: var(--font-jetbrains-mono), monospace;
+  /* The design sets every label in Inter. The dashboard's many small `font-mono` labels therefore use
+     Inter (with aligned digits, below); real code (JSON, hashes, diffs, exports, keys) uses `font-code`. */
+  --font-mono: var(--font-inter), -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-code: var(--font-jetbrains-mono), ui-monospace, monospace;
 
   /* Mint accent scale: 400 = #5df0a8 (accent), 500 = #2fd38a (accent-2), 950 = #032018 (accent-ink).
      600/700 are dark enough to carry white text. */
@@ -51,6 +54,10 @@ body {
   margin: 0;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+}
+
+.font-mono {
+  font-variant-numeric: tabular-nums;
 }
 
 /* Dashboard backdrop: a static starfield with a soft blue glow (the WebGL planet is landing-page only) */

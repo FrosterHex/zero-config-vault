@@ -223,7 +223,7 @@ function ConfigsContent() {
       {/* 3D Cyber Atmosphere Background Elements */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden -z-10 bg-grid-cyber">
         <div className="absolute top-1/4 left-1/4 h-80 w-80 rounded-full bg-mint-600/15 blur-[120px]" />
-        <div className="absolute top-1/3 right-1/4 h-80 w-80 rounded-full bg-purple-600/10 blur-[130px]" />
+        <div className="absolute top-1/3 right-1/4 h-80 w-80 rounded-full bg-blue-600/10 blur-[130px]" />
       </div>
 
       {/* Editorial Header */}
@@ -418,7 +418,7 @@ function ConfigsContent() {
 
           {/* Right Panel: Interactive JSON Tree & Code Editor with 3D Tilt */}
           <div className="lg:col-span-7 h-[580px]">
-            <GlassCard3D glowColor="purple" className="h-full">
+            <GlassCard3D glowColor="blue" className="h-full">
               <JsonTreeEditor
                 initialValue={editorPayload}
                 onSave={handleCommitRevision}

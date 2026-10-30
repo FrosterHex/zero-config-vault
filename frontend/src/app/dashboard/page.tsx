@@ -117,7 +117,7 @@ export default function Home() {
                   <span>Live updates over Server-Sent Events</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <Cpu className="h-4 w-4 text-purple-400" />
+                  <Cpu className="h-4 w-4 text-blue-400" />
                   <span>Atomic bulk import (transactions)</span>
                 </div>
               </div>
@@ -171,17 +171,17 @@ export default function Home() {
             </div>
           </GlassCard3D>
 
-          <GlassCard3D tilt glowColor="purple">
+          <GlassCard3D tilt glowColor="blue">
             <div className="p-5 space-y-3">
               <div className="flex items-center justify-between text-slate-400">
                 <span className="text-[11px] font-mono uppercase tracking-wider">GitOps Revisions</span>
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20">
                   <GitCompare className="h-4 w-4" />
                 </div>
               </div>
               <div className="flex items-baseline gap-2">
                 <span className="text-3xl font-extrabold text-white font-mono">{totalVers}</span>
-                <span className="text-xs text-purple-400 font-mono">stored versions</span>
+                <span className="text-xs text-blue-400 font-mono">stored versions</span>
               </div>
               <div className="text-[10px] font-mono text-slate-500 pt-2 border-t border-white/5 flex justify-between">
                 <span>Compound unique index</span>
@@ -286,17 +286,17 @@ export default function Home() {
             </Link>
 
             <Link href="/export" className="group">
-              <GlassCard3D tilt glowColor="purple" className="h-full">
+              <GlassCard3D tilt glowColor="blue" className="h-full">
                 <div className="p-5 space-y-3">
                   <div className="flex items-center justify-between">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20 group-hover:scale-110 transition-transform">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20 group-hover:scale-110 transition-transform">
                       <FileCode className="h-5 w-5" />
                     </div>
-                    <span className="text-[10px] font-mono uppercase text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/20">
+                    <span className="text-[10px] font-mono uppercase text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">
                       Export
                     </span>
                   </div>
-                  <h3 className="font-sans text-base font-bold text-white group-hover:text-purple-300 transition-colors">
+                  <h3 className="font-sans text-base font-bold text-white group-hover:text-blue-300 transition-colors">
                     Export Studio
                   </h3>
                   <p className="text-xs text-slate-400 leading-relaxed font-light">
@@ -349,17 +349,17 @@ export default function Home() {
             </Link>
 
             <Link href="/nosql" className="group">
-              <GlassCard3D tilt glowColor="purple" className="h-full">
+              <GlassCard3D tilt glowColor="blue" className="h-full">
                 <div className="p-5 space-y-3">
                   <div className="flex items-center justify-between">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20 group-hover:scale-110 transition-transform">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20 group-hover:scale-110 transition-transform">
                       <Database className="h-5 w-5" />
                     </div>
-                    <span className="text-[10px] font-mono uppercase text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/20">
+                    <span className="text-[10px] font-mono uppercase text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">
                       NoSQL Core
                     </span>
                   </div>
-                  <h3 className="font-sans text-base font-bold text-white group-hover:text-purple-300 transition-colors">
+                  <h3 className="font-sans text-base font-bold text-white group-hover:text-blue-300 transition-colors">
                     NoSQL Deep Dive & Sharding
                   </h3>
                   <p className="text-xs text-slate-400 leading-relaxed font-light">

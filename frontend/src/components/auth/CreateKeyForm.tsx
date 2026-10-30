@@ -143,7 +143,7 @@ export function CreateKeyForm({ onCreated }: { onCreated: () => void }) {
         <div role="status" className="space-y-1.5 rounded-lg border border-emerald-500/30 bg-emerald-950/30 p-3">
           <p className="text-[11px] text-emerald-300">Copy this key now. It is shown only once.</p>
           <div className="flex items-center gap-2">
-            <code className="flex-1 break-all rounded bg-black/40 px-2 py-1 font-mono text-xs text-white">{rawKey}</code>
+            <code className="flex-1 break-all rounded bg-black/40 px-2 py-1 font-code text-xs text-white">{rawKey}</code>
             <button
               type="button"
               onClick={copyRawKey}

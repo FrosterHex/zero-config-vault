@@ -81,8 +81,9 @@ Each entry records a decision, why it was made, and what it costs. Entries 14 to
   - **Stack:** Next.js 15 (App Router) with Tailwind CSS 4, Framer Motion and Three.js.
   - **Fonts:** Cormorant Garamond for headings, Montserrat for body text, JetBrains Mono for code and hashes.
   - **Theme:** a dark theme.
+  - **Landing page:** a separate cover at `/` with a WebGL planet, Inter and a deep-space palette. Its styles and colour tokens are scoped under `.landing`, so the dashboard keeps its own design.
 - **Reasoning:** The dashboard is the main way the project is presented. A consistent, distinctive type pairing and clear status colours make versions, hashes and secrets easy to tell apart.
-- **Cost:** Custom components rather than a component library, so accessibility details are maintained by hand.
+- **Cost:** Custom components rather than a component library, so accessibility details are maintained by hand. The landing page adds about 1.4 MB of 3D assets, which load after the page text and are cached for a week.
 
 ## 13. Motion that respects reduced-motion settings
 

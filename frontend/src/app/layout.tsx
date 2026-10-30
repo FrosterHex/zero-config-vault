@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Cormorant_Garamond, Montserrat, JetBrains_Mono } from "next/font/google";
+import { Cormorant_Garamond, Montserrat, Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
 const cormorantGaramond = Cormorant_Garamond({
@@ -13,6 +13,14 @@ const montserrat = Montserrat({
   variable: "--font-montserrat",
   subsets: ["latin"],
   weight: ["300", "400", "500", "600", "700"],
+  display: "swap",
+});
+
+// Inter is used only by the landing page (the cover); the dashboard keeps Cormorant Garamond and Montserrat.
+const inter = Inter({
+  variable: "--font-inter",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800", "900"],
   display: "swap",
 });
 
@@ -39,7 +47,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body
-        className={`${cormorantGaramond.variable} ${montserrat.variable} ${jetbrainsMono.variable} antialiased bg-[#090D16] text-[#F8FAFC]`}
+        className={`${cormorantGaramond.variable} ${montserrat.variable} ${inter.variable} ${jetbrainsMono.variable} antialiased bg-[#090D16] text-[#F8FAFC]`}
       >
         <AppProviders>
           {children}

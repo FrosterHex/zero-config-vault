@@ -69,7 +69,8 @@ export function GlassCard3D({
   return (
     <div
       style={{ perspective: 1200 }}
-      className="relative transition-transform duration-200"
+      // h-full: the wrapper must take the column's height, or a card given h-full (editor, ledger) collapses to its content
+      className="relative h-full transition-transform duration-200"
     >
       <div
         ref={cardRef}
@@ -99,7 +100,8 @@ export function GlassCard3D({
         <div className="pointer-events-none absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent" />
 
         {/* Content Container */}
-        <div className="relative z-10">{children}</div>
+        {/* h-full so panels given a fixed height (editor, revision ledger, diff) fill the card */}
+        <div className="relative z-10 h-full">{children}</div>
       </div>
     </div>
   );
